@@ -5,13 +5,25 @@
 # -----------------------------------------------------------------------------
 
 if [[ -z "${WARP_AI_ROOT:-}" ]]; then
-  export WARP_AI_ROOT="$HOME/.warp-ai-enhancement"
+  if [[ -d "$HOME/.superwarp-toolkit" ]]; then
+    export WARP_AI_ROOT="$HOME/.superwarp-toolkit"
+  elif [[ -L "$HOME/.warp-ai-enhancement" ]]; then
+    export WARP_AI_ROOT="$HOME/.warp-ai-enhancement"
+  elif [[ -d "$HOME/.warp-ai-enhancement" ]]; then
+    export WARP_AI_ROOT="$HOME/.superwarp-toolkit"
+    if command -v mv >/dev/null 2>&1; then
+      mv "$HOME/.warp-ai-enhancement" "$HOME/.superwarp-toolkit"
+    fi
+  else
+    export WARP_AI_ROOT="$HOME/.superwarp-toolkit"
+  fi
 fi
 
 export WARP_AI_LOG_DIR="${WARP_AI_LOG_DIR:-$HOME/Library/Logs/WarpAI}"
 export WARP_AI_MAIN_LOG="$WARP_AI_LOG_DIR/Claude_Conversation_Log.txt"
 export WARP_AI_BACKUP_LOG="$WARP_AI_LOG_DIR/Claude_Conversation_Backup_$(date +%Y%m%d).txt"
 export WARP_AI_CODEX_BIN="${WARP_AI_CODEX_BIN:-codex}"
+export WARP_AI_GROK_BIN="${WARP_AI_GROK_BIN:-grok}"
 export WARP_AI_WELCOME_STAMP_FILE="${WARP_AI_WELCOME_STAMP_FILE:-${TMPDIR:-/tmp}/warp-ai-last-welcome}"
 export WARP_AI_WELCOME_COOLDOWN="${WARP_AI_WELCOME_COOLDOWN:-90}"
 
@@ -117,6 +129,12 @@ warp_ai_doctor() {
     echo "codex: ok"
   else
     echo "codex: optional, not installed"
+  fi
+
+  if [[ -n "$(command -v "$WARP_AI_GROK_BIN" 2>/dev/null)" ]]; then
+    echo "grok: ok"
+  else
+    echo "grok: optional, not installed"
   fi
 
   if [[ -n "$(command -v sqlite3 2>/dev/null)" ]]; then
@@ -538,7 +556,7 @@ warp_ai_uri_scheme() {
 warp_ai_install_tab_configs() {
   local tab_dir install_dir logs_dir profile_path toolkit_config doctor_config
   tab_dir="$(warp_ai_tab_config_dir)"
-  install_dir="${WARP_AI_ROOT:-$HOME/.warp-ai-enhancement}"
+  install_dir="${WARP_AI_ROOT:-$HOME/.superwarp-toolkit}"
   logs_dir="${WARP_AI_LOG_DIR:-$HOME/Library/Logs/WarpAI}"
   profile_path="${install_dir}/warp-ai-enhancement-profile.zsh"
   toolkit_config="${tab_dir}/superwarp_toolkit.toml"
@@ -727,6 +745,15 @@ warp_ai_invoke_web_search() {
     return $?
   fi
 
+  if [[ -n "$(command -v "$WARP_AI_GROK_BIN" 2>/dev/null)" ]]; then
+    if [[ -n "${WARP_AI_GROK_MODEL:-}" ]]; then
+      "$WARP_AI_GROK_BIN" -p "Please summarize this query with sources for research: ${query}" --model "${WARP_AI_GROK_MODEL}" --output-format plain --no-auto-update
+    else
+      "$WARP_AI_GROK_BIN" -p "Please summarize this query with sources for research: ${query}" --output-format plain --no-auto-update
+    fi
+    return $?
+  fi
+
   if [[ -n "$(command -v python3 2>/dev/null)" ]]; then
     WARP_AI_QUERY="$query" python3 - <<'PY'
 import urllib.request, urllib.parse, json
@@ -740,7 +767,29 @@ except Exception as e:
   print(f"Web search unavailable: {e}")
 PY
   else
-    echo "⚠️ Gemini CLI not found, and python3 missing for fallback web lookup."
+    echo "⚠️ Gemini/Grok CLI not found, and python3 missing for fallback web lookup."
+  fi
+}
+
+warp_ai_invoke_grok() {
+  local query="$*"
+  if [[ -z "$query" ]]; then
+    echo "❌ Usage: warp_ai_invoke_grok '<query>'"
+    return 1
+  fi
+
+  if [[ -z "$(command -v "$WARP_AI_GROK_BIN" 2>/dev/null)" ]]; then
+    echo "⚠️ Grok CLI not installed."
+    echo "   Install with: ./install.sh --install-grok"
+    echo "   Or set WARP_AI_GROK_BIN if installed as a custom path."
+    return 1
+  fi
+
+  warp_ai_log "TOOL" "Direct Grok request: $query"
+  if [[ -n "${WARP_AI_GROK_MODEL:-}" ]]; then
+    "$WARP_AI_GROK_BIN" -p "$query" --model "$WARP_AI_GROK_MODEL" --output-format plain --no-auto-update
+  else
+    "$WARP_AI_GROK_BIN" -p "$query" --output-format plain --no-auto-update
   fi
 }
 
@@ -911,6 +960,10 @@ warp_ai_context_snapshot() {
       projects+=("🦙 Ollama vision/tooling activity detected")
       (( project_count += 1 ))
     fi
+    if [[ "$recent_file" == *"Grok"* || "$recent_file" == *"grok"* ]]; then
+      projects+=("🤖 Grok workflow activity detected")
+      (( project_count += 1 ))
+    fi
     if [[ "$recent_file" == *"Gemini"* || "$recent_file" == *"gemini"* ]]; then
       projects+=("💎 Gemini CLI usage detected")
       (( project_count += 1 ))
@@ -966,6 +1019,7 @@ warp_ai_startup() {
 }
 
 alias warpai-search='warp_ai_invoke_web_search'
+alias warpai-grok='warp_ai_invoke_grok'
 alias warpai-image='warp_ai_invoke_image_analysis'
 alias warpai-calc='warp_ai_calculate'
 alias warpai-cmd='warp_ai_command'

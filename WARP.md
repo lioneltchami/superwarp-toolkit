@@ -15,7 +15,7 @@ This repository is a macOS-only zsh helper layer for Warp Terminal.
 - `bash` for installer scripts
 - `python3` for calculator and plist parsing
 - `sqlite3` for read-only Warp usage history
-- Gemini CLI, Codex, and Ollama are optional
+- Gemini CLI, Grok CLI, Codex, and Ollama are optional
 
 For explicit Codex installation, you can set:
 - `WARP_AI_CODEX_INSTALL_COMMAND` (full shell command) or
@@ -38,6 +38,7 @@ For explicit Codex installation, you can set:
 - `warpai-layout-install`
 - `warpai-open`
 - `warpai-codex`
+- `warpai-grok`
 
 ## Safety Rules
 
@@ -53,6 +54,9 @@ For explicit Codex installation, you can set:
 
 - Install with `./install.sh`
 - Use `./install.sh --no-permission-panes` for quieter test runs
+- Set `WARP_AI_ACCEPT_DEFAULTS=1` (or use `--accept-defaults`) to auto-install optional companions.
+- Prefer repo-local defaults by adding `.superwarp-toolkit.env` with values like:
+  `WARP_AI_ACCEPT_DEFAULTS=1`.
 - Uninstall with `./uninstall.sh`
 - Logs remain in `~/Library/Logs/WarpAI`
 

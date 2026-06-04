@@ -63,6 +63,12 @@ test_help_includes_new_flags() {
   output="$("$ROOT_DIR/install.sh" --help 2>&1)"
   assert_contains "$output" "--install-gemini"
   assert_contains "$output" "--install-ollama"
+  assert_contains "$output" "--install-grok"
+  assert_contains "$output" "--accept-defaults"
+  assert_contains "$output" "WARP_AI_INSTALL_DEFAULTS_FILE"
+  assert_contains "$output" "WARP_AI_ACCEPT_DEFAULTS"
+  assert_contains "$output" "WARP_AI_GROK_INSTALL_COMMAND"
+  assert_contains "$output" "WARP_AI_GROK_BIN"
   assert_contains "$output" "--no-permission-panes"
   assert_contains "$output" "WARP_AI_CODEX_INSTALL_COMMAND"
   assert_contains "$output" "--install-codex"
@@ -73,7 +79,16 @@ test_install_codex_with_command() {
   local home_dir codex_path custom_install_cmd
   home_dir="$(mktemp -d)"
   codex_path="$home_dir/.local/bin/codex"
-  custom_install_cmd="mkdir -p '$home_dir/.local/bin'; printf '#!/usr/bin/env sh\\nprintf codex-installed\\n' > '$codex_path'; chmod +x '$codex_path'"
+  custom_install_cmd="$(
+cat <<EOF
+mkdir -p '$home_dir/.local/bin'
+cat > '$codex_path' <<'EOF_SCRIPT'
+#!/usr/bin/env sh
+printf 'codex-installed'
+EOF_SCRIPT
+chmod +x '$codex_path'
+EOF
+  )"
 
   HOME="$home_dir" \
     WARP_AI_CODEX_INSTALL_COMMAND="$custom_install_cmd" \
@@ -102,14 +117,39 @@ test_install_codex_missing_config_fails() {
   assert_contains "$output" "WARP_AI_CODEX_INSTALL_COMMAND"
   assert_contains "$output" "WARP_AI_CODEX_NPM_PACKAGE"
 }
+
+test_install_grok_with_command() {
+  local home_dir grok_path custom_install_cmd
+  home_dir="$(mktemp -d)"
+  grok_path="$home_dir/.local/bin/grok"
+  custom_install_cmd="$(
+cat <<EOF
+mkdir -p '$home_dir/.local/bin'
+cat > '$grok_path' <<'EOF_SCRIPT'
+#!/usr/bin/env sh
+printf 'grok-installed'
+EOF_SCRIPT
+chmod +x '$grok_path'
+EOF
+  )"
+
+  HOME="$home_dir" \
+    WARP_AI_GROK_INSTALL_COMMAND="$custom_install_cmd" \
+    WARP_AI_GROK_BIN="$grok_path" \
+    "$ROOT_DIR/install.sh" --install-grok --no-permission-panes >/dev/null
+
+  [[ -x "$grok_path" ]] || fail "custom grok install command did not create executable"
+  [[ "$("$grok_path")" == "grok-installed" ]] || fail "custom grok command output mismatch"
+}
+
 test_uninstall_removes_install_dir() {
   local home_dir
   home_dir="$(mktemp -d)"
   HOME="$home_dir" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
-  [[ -d "$home_dir/.warp-ai-enhancement" ]] || fail "install dir missing before uninstall"
+  [[ -d "$home_dir/.superwarp-toolkit" ]] || fail "install dir missing before uninstall"
 
   HOME="$home_dir" "$ROOT_DIR/uninstall.sh" >/dev/null
-  [[ ! -d "$home_dir/.warp-ai-enhancement" ]] || fail "install dir still present after uninstall"
+  [[ ! -d "$home_dir/.superwarp-toolkit" ]] || fail "install dir still present after uninstall"
 }
 
 test_repo_native_assets_exist() {
@@ -247,6 +287,42 @@ EOF
   missing_output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal WARP_AI_CODEX_BIN="$missing_bin" zsh "$cmd_script" 2>&1 || true)"
   assert_contains "$missing_output" "Codex CLI not found"
   assert_contains "$missing_output" "Install and authenticate Codex first"
+}
+
+test_grok_command_integration() {
+  local home_dir fake_grok cmd_script
+  local working_output missing_output
+
+  home_dir="$(mktemp -d)"
+  fake_grok="$home_dir/bin/grok"
+  mkdir -p "$home_dir/bin"
+  cmd_script="$home_dir/run-grok-command.zsh"
+
+  cat > "$fake_grok" <<'EOF'
+#!/usr/bin/env sh
+printf 'grok-hit: %s\n' "$*"
+EOF
+  chmod +x "$fake_grok"
+
+  cat > "$cmd_script" <<EOF
+source "$ROOT_DIR/scripts/warp-ai-toolkit.sh"
+WARP_AI_GROK_BIN="$fake_grok"
+warp_ai_invoke_grok 'explain this repo in 3 points'
+EOF
+
+  working_output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal zsh "$cmd_script" 2>&1)"
+  assert_contains "$working_output" "grok-hit:"
+  assert_contains "$working_output" "-p explain this repo in 3 points"
+
+  cat > "$cmd_script" <<EOF
+source "$ROOT_DIR/scripts/warp-ai-toolkit.sh"
+WARP_AI_GROK_BIN="$home_dir/bin/missing-grok"
+warp_ai_invoke_grok 'explain this'
+EOF
+
+  missing_output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal zsh "$cmd_script" 2>&1 || true)"
+  assert_contains "$missing_output" "⚠️ Grok CLI not installed"
+  assert_contains "$missing_output" "./install.sh --install-grok"
 }
 
 create_usage_fixtures() {
@@ -428,9 +504,11 @@ test_uninstall_removes_install_dir
 test_repo_native_assets_exist
 test_warp_asset_contracts
 test_repo_doctor_uses_repo_toolkit_path
+test_install_grok_with_command
 test_tab_config_install
 test_tab_config_preview_detection
 test_codex_command_integration
+test_grok_command_integration
 test_usage_helpers_with_fixtures
 test_usage_helpers_handle_missing_data
 test_usage_helpers_handle_unsupported_sqlite_schema

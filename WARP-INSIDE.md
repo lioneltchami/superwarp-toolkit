@@ -34,6 +34,7 @@ All commands are available as simple aliases after the loader is active:
 - `warpai-cmd split down`
 - `warpai-cmd close panel`
 - `warpai-cmd screenshot [/tmp/file.png]`
+- `warpai-grok "<query>"` → run a direct headless Grok prompt
 - `warpai-usage` → reads Warp usage history + quota snapshot
 - `warpai-quick` → concise quota/request summary
 - `warpai-layout-install` → install Warp Tab Configs
@@ -119,6 +120,9 @@ and check the permission notes (`permission_warnings` section).
 
 - **`warpai-codex` not found**  
   This is optional. Install Codex first (or set `WARP_AI_CODEX_BIN`) and re-run `./install.sh --install-codex` if needed.
+
+- **`warpai-grok` not found**
+  Install Grok with `./install.sh --install-grok`, or set `WARP_AI_GROK_BIN` for custom binary paths.
 
 ## 7) If you want the clean "this is what to do now" path
 

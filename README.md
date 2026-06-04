@@ -2,7 +2,7 @@
 **A polished Warp terminal toolkit for macOS with install, uninstall, doctor, permissions, search, automation, and local AI helpers.**
 
 ![Status](https://img.shields.io/badge/Status-macOS%20Ready-brightgreen)
-![AI Collaboration](https://img.shields.io/badge/AI%20Collaboration-Claude%20%2B%20Gemini%20%2B%20Codex%20%2B%20Ollama-blue)
+![AI Collaboration](https://img.shields.io/badge/AI%20Collaboration-Claude%20%2B%20Gemini%20%2B%20Grok%20%2B%20Codex%20%2B%20Ollama-blue)
 ![Platform](https://img.shields.io/badge/Platform-macOS-lightgrey)
 ![Shell](https://img.shields.io/badge/Shell-zsh-black)
 ![License](https://img.shields.io/badge/License-MIT-success)
@@ -20,14 +20,15 @@ It gives you:
 - **🩺 Better trust** with `warpai-doctor` for runtime checks
 - **🧠 Useful terminal helpers** for calculation, search, image prompting, and Warp pane control
 - **📝 Lightweight session logging** and startup context
-- **🎛️ Optional AI integrations** through Gemini CLI, Codex CLI, and Ollama
+- **🎛️ Optional AI integrations** through Gemini CLI, Grok CLI, Codex CLI, and Ollama
 
 This branch is intentionally **smaller and cleaner** than the old Windows-heavy version. It is not trying to be an “everything platform.” It focuses on being a solid macOS Warp toolkit you can install, validate, and use.
 
 ## ✨ Highlights
 
 - **`install.sh`**  
-  Installs the suite into `~/.warp-ai-enhancement` and wires it into `~/.zshrc`.
+  Installs the suite into `~/.superwarp-toolkit` and wires it into `~/.zshrc`.
+  Legacy `~/.warp-ai-enhancement` installs are migrated automatically for compatibility.
 
 - **`uninstall.sh`**  
   Cleanly removes the managed loader block and installed toolkit files.
@@ -42,7 +43,10 @@ This branch is intentionally **smaller and cleaner** than the old Windows-heavy 
   - `Screen Recording`
 
 - **`warpai-search`**  
-  Uses Gemini CLI when available, with a DuckDuckGo fallback when it is not.
+  Uses Gemini CLI when available, then Grok CLI, then DuckDuckGo when web tools are unavailable.
+
+- **`warpai-grok`**  
+  Directs a prompt to Grok for headless research or coding-style assistance.
 
 - **`warpai-calc`**  
   Uses a restricted AST-based numeric evaluator rather than unsafe `eval`.
@@ -95,6 +99,7 @@ Core commands:
 - `warpai-layout-install`
 - `warpai-open`
 - `warpai-codex`
+- `warpai-grok`
 
 Warp-native repo assets:
 
@@ -127,6 +132,7 @@ Installed automatically if missing:
 Optional companion tools:
 
 - **Gemini CLI** for better search and web-grounded responses
+- **Grok CLI** for direct headless prompts and alternative model routing
 - **Ollama** for local image analysis and multimodal workflows
 - **Codex CLI** for repo-aware agent-style breakdowns and coding suggestions
 
@@ -192,6 +198,7 @@ It helps keep the toolkit safe to clone on a fresh Mac and quickly update via gi
 If you want a quick command-surface check:
 
 ```bash
+warpai-grok "Summarize recent macOS automation gotchas"
 warpai-calc "2 + 2"
 warpai-codex "Summarize this session setup"
 ```
@@ -232,11 +239,12 @@ For production-style sharing, you can also download the release asset directly f
 
 ### What the installer does
 
-- installs the suite into `~/.warp-ai-enhancement`
+- installs the suite into `~/.superwarp-toolkit`
+- parses command-line flags and, when no optional install flags are passed, prompts for optional components
 - appends a managed loader block to `~/.zshrc`
 - installs `python3` automatically if needed
 - uses Homebrew for `python3`, and bootstraps Homebrew first if necessary
-- can optionally install Gemini CLI and Ollama
+- optionally installs Gemini CLI, Grok CLI, Ollama, and Codex
 - opens the relevant macOS Privacy & Security panes during interactive installs
 
 ### Installer options
@@ -244,13 +252,64 @@ For production-style sharing, you can also download the release asset directly f
 ```bash
 ./install.sh --no-shell-hook
 ./install.sh --no-permission-panes
+./install.sh --accept-defaults
+WARP_AI_ACCEPT_DEFAULTS=1 ./install.sh
 ./install.sh --install-gemini
 ./install.sh --install-ollama
 ./install.sh --install-codex
+./install.sh --install-grok
 ./install.sh --install-gemini --install-ollama
 ./install.sh --install-codex --no-permission-panes
+./install.sh --install-grok --no-permission-panes
+./install.sh --accept-defaults --no-permission-panes
 ./install.sh --help
 ```
+
+If you run `./install.sh` with no install flags in an interactive terminal, it now prompts for each optional component.
+Press Enter for “yes” to install or `n` to skip.
+If run non-interactively, it skips optional prompts and only installs required files unless you pass explicit flags or enable defaults via `--accept-defaults` / `WARP_AI_ACCEPT_DEFAULTS` / `.superwarp-toolkit.env`.
+
+You can also control this via environment:
+
+```bash
+export WARP_AI_ACCEPT_DEFAULTS=1
+./install.sh
+```
+
+Accepted values: `1`, `true`, `yes`, `on`, `enabled`.
+
+If you want this behavior to persist for this repository, set it in:
+
+```text
+.superwarp-toolkit.env
+```
+
+Or point to a custom defaults file with `WARP_AI_INSTALL_DEFAULTS_FILE`:
+
+```bash
+export WARP_AI_INSTALL_DEFAULTS_FILE="/path/to/custom.defaults"
+./install.sh
+```
+
+### `--install-grok` setup example
+
+Grok is installed with the official xAI installer by default, or a custom command path:
+
+```bash
+export WARP_AI_GROK_INSTALL_COMMAND="curl -fsSL https://x.ai/cli/install.sh | bash"
+export WARP_AI_GROK_BIN="grok"
+export WARP_AI_GROK_MODEL="grok-4"
+
+./install.sh --install-grok
+```
+
+For non-browser / CI sessions, export an API key before launching `warpai-grok`:
+
+```bash
+export XAI_API_KEY="xai-..."
+```
+
+If your Grok binary is not on PATH, set `WARP_AI_GROK_BIN` to the exact executable path.
 
 ### `--install-codex` setup example
 
@@ -271,6 +330,7 @@ export WARP_AI_CODEX_BIN="/full/path/to/codex"
 
 ```bash
 warpai-doctor
+warpai-grok "Summarize Warp permission behavior for macOS"
 warpai-search "latest AI developments"
 warpai-calc "1024 * 768 / 2"
 warpai-image /absolute/path/to/image.png "Describe this image"
@@ -323,9 +383,10 @@ if you want to reopen those panes later.
 - `warpai-cmd` assumes the current default Warp macOS pane shortcuts.
 - If you remap Warp shortcuts, pane automation may stop matching your setup.
 - Warp Tab Configs are a better fit for repeatable workspace layouts than simulated keystrokes.
-- Gemini-free search falls back to DuckDuckGo Instant Answer and may return sparse summaries.
+- Gemini/Grok-free search falls back to DuckDuckGo Instant Answer and may return sparse summaries.
 - Image analysis depends on a locally installed Ollama multimodal model.
 - Codex commands depend on your local Codex auth/session and network access.
+- `warpai-grok` runs headless Grok prompts and supports `WARP_AI_GROK_MODEL`.
 
 ## 🚀 Tab Configs
 
@@ -426,7 +487,7 @@ In practice, this is the core of the Superwarp idea: Warp-native skills for agen
 
 - `zsh` is the supported startup shell.
 - GUI automation depends on a live Warp window and granted macOS permissions.
-- `--install-gemini` and `--install-ollama` make real system-wide dependency changes.
+- `--install-gemini`, `--install-grok`, and `--install-ollama` make real system-wide dependency changes.
 - `--install-codex` is optional and requires an explicit install command or npm package export.
 - This repo does **not** directly hook into Warp’s internal agent runtime or automatically capture Warp AI prompts and responses.
 - `warpai-codex` needs an authenticated Codex session and valid CLI credentials.
@@ -439,7 +500,7 @@ This repository is now branded as **Superwarp Toolkit** and the local folder is 
 
 For users from older local checkouts:
 
-- The rename is intentionally lightweight: existing install paths like `~/.warp-ai-enhancement` and existing managed loader behavior are unchanged for compatibility.
+- The rename is intentionally lightweight: install paths are now centered on `~/.superwarp-toolkit`, with `~/.warp-ai-enhancement` migration support for existing users.
 - Existing installations continue to work.
 - If you want the local checkout to reflect the new name, clone or `cd` from the new folder path shown in the instructions below.
 - Remote is now: `https://github.com/lioneltchami/superwarp-toolkit`
@@ -467,7 +528,7 @@ It does not mean every machine is identical, but it does mean the branch is in m
 That removes:
 
 - the managed loader block from `~/.zshrc`
-- the installed suite in `~/.warp-ai-enhancement`
+- the installed suite in `~/.superwarp-toolkit`
 
 Logs are intentionally left behind at `~/Library/Logs/WarpAI` unless you remove them manually.
 

@@ -2,7 +2,26 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_DIR="${WARP_AI_ENHANCEMENT_DIR:-$HOME/.warp-ai-enhancement}"
+DEFAULT_INSTALL_DIR="$HOME/.superwarp-toolkit"
+LEGACY_INSTALL_DIR="$HOME/.warp-ai-enhancement"
+DEFAULTS_FILE="${WARP_AI_INSTALL_DEFAULTS_FILE:-$PROJECT_DIR/.superwarp-toolkit.env}"
+if [[ -n "${WARP_AI_INSTALL_DIR:-}" ]]; then
+  INSTALL_DIR="$WARP_AI_INSTALL_DIR"
+elif [[ -n "${WARP_AI_ENHANCEMENT_DIR:-}" ]]; then
+  INSTALL_DIR="$WARP_AI_ENHANCEMENT_DIR"
+elif [[ -L "$LEGACY_INSTALL_DIR" ]]; then
+  INSTALL_DIR="$LEGACY_INSTALL_DIR"
+elif [[ -d "$LEGACY_INSTALL_DIR" && ! -d "$DEFAULT_INSTALL_DIR" ]]; then
+  INSTALL_DIR="$LEGACY_INSTALL_DIR"
+else
+  INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+fi
+if [[ -z "${WARP_AI_INSTALL_DIR:-}" && -z "${WARP_AI_ENHANCEMENT_DIR:-}" && -d "$LEGACY_INSTALL_DIR" && ! -d "$DEFAULT_INSTALL_DIR" ]]; then
+  if command -v mv >/dev/null 2>&1; then
+    mv "$LEGACY_INSTALL_DIR" "$DEFAULT_INSTALL_DIR"
+    INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+  fi
+fi
 PROFILE_SOURCE="$PROJECT_DIR/warp-ai-enhancement-profile.zsh"
 TOOLKIT_SOURCE="$PROJECT_DIR/scripts/warp-ai-toolkit.sh"
 
@@ -12,17 +31,121 @@ DO_PERMISSION_PANES=1
 INSTALL_GEMINI=0
 INSTALL_OLLAMA=0
 INSTALL_CODEX=0
+INSTALL_GROK=0
+ASSUME_YES=0
+EXPLICIT_INSTALL_FLAGS=0
+if [[ -r "$DEFAULTS_FILE" ]]; then
+  source_defaults() {
+    local line key value
+    while IFS= read -r line; do
+      line="${line#"${line%%[!$'\t\r\n ']*}"}"
+      line="${line%"${line##*[!$'\t\r\n ']}"}"
+      [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
+      [[ "$line" == *=* ]] || continue
+      key="${line%%=*}"
+      value="${line#*=}"
+      key="${key#"${key%%[!$'\t\r\n ']*}"}"
+      key="${key%"${key##*[!$'\t\r\n ']}"}"
+      value="${value#"${value%%[!$'\t\r\n ']*}"}"
+      value="${value%"${value##*[!$'\t\r\n ']}"}"
+      case "$key" in
+        [A-Za-z_][A-Za-z0-9_]*)
+          ;;
+        *)
+          continue
+          ;;
+      esac
+      if [[ -z "${!key+x}" ]]; then
+        if [[ "$key" == WARP_AI_* ]]; then
+          if [[ "${value}" == \"*\" && "${value}" == *\" ]]; then
+            value="${value%\"}"
+            value="${value#\"}"
+          elif [[ "${value}" == \'*\' && "${value}" == *\' ]]; then
+            value="${value%\'}"
+            value="${value#\'}"
+          fi
+          export "${key}=${value}"
+        fi
+      fi
+    done < "$DEFAULTS_FILE"
+  }
+  source_defaults
+fi
+
+if [[ -n "${WARP_AI_ACCEPT_DEFAULTS:-}" ]]; then
+  local_accept_default="$(printf '%s' "$WARP_AI_ACCEPT_DEFAULTS" | tr '[:upper:]' '[:lower:]')"
+  case "$local_accept_default" in
+    1|true|yes|on|enabled)
+      ASSUME_YES=1
+      ;;
+  esac
+fi
+
+ask_yes_no() {
+  local prompt="$1"
+  local answer
+
+  while true; do
+    if ! read -r -p "$prompt [Y/n]: " answer < /dev/tty; then
+      log "Input unavailable; skipping prompt."
+      return 1
+    fi
+    normalized_answer="$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')"
+
+    case "$normalized_answer" in
+      y|yes|"")
+        return 0
+        ;;
+      n|no)
+        return 1
+        ;;
+      *)
+        log "Please answer y or n."
+        ;;
+    esac
+  done
+}
+
+prompt_for_optional_components() {
+  if [[ $ASSUME_YES -eq 1 ]]; then
+    INSTALL_GEMINI=1
+    INSTALL_OLLAMA=1
+    INSTALL_CODEX=1
+    INSTALL_GROK=1
+    return 0
+  fi
+
+  log "Interactive install mode: choose optional components."
+  log "Press Enter for yes, or type n to skip."
+  if ask_yes_no "Install Gemini CLI"; then
+    INSTALL_GEMINI=1
+  fi
+  if ask_yes_no "Install Ollama"; then
+    INSTALL_OLLAMA=1
+  fi
+  if ask_yes_no "Install Codex CLI"; then
+    INSTALL_CODEX=1
+  fi
+  if ask_yes_no "Install Grok CLI"; then
+    INSTALL_GROK=1
+  fi
+}
 
 log() {
   printf "[warp-ai] %s\n" "$*"
 }
 
 show_help() {
-  log "Usage: ./install.sh [--no-shell-hook] [--no-permission-panes] [--install-gemini] [--install-ollama] [--install-codex]"
+  log "Usage: ./install.sh [--no-shell-hook] [--no-permission-panes] [--accept-defaults] [--install-gemini] [--install-ollama] [--install-codex] [--install-grok]"
   log "  --install-gemini       Install Gemini CLI"
   log "  --install-ollama       Install Ollama"
   log "  --install-codex        Install Codex CLI (optional; requires codex package/source config)"
   log "  --install-codex uses WARP_AI_CODEX_INSTALL_COMMAND and/or WARP_AI_CODEX_NPM_PACKAGE."
+  log "  --install-grok         Install Grok CLI via xAI installer or WARP_AI_GROK_INSTALL_COMMAND"
+  log "  --install-grok can also use WARP_AI_GROK_BIN and/or WARP_AI_GROK_INSTALL_COMMAND."
+  log "  --accept-defaults      Install all optional components without prompting"
+  log "  WARP_AI_INSTALL_DEFAULTS_FILE  path to a per-repo defaults file (default: ./.superwarp-toolkit.env)"
+  log "  WARP_AI_ACCEPT_DEFAULTS can also be set to 1/true/yes/on/enabled to auto-install defaults."
   log "  --no-permission-panes   Do not open macOS Privacy & Security panes"
   log "  --no-shell-hook   Install files only, do not modify ~/.zshrc"
   log "  --help            Show this help"
@@ -101,6 +224,37 @@ ensure_node() {
     log "node/npm installation did not complete successfully."
     exit 1
   fi
+}
+
+install_grok_cli() {
+  local grok_binary="${WARP_AI_GROK_BIN:-grok}"
+
+  if command_exists "$grok_binary"; then
+    log "Grok CLI already available."
+    return 0
+  fi
+
+  if [[ -n "${WARP_AI_GROK_INSTALL_COMMAND:-}" ]]; then
+    log "Installing Grok CLI via WARP_AI_GROK_INSTALL_COMMAND..."
+    if ! sh -c "$WARP_AI_GROK_INSTALL_COMMAND"; then
+      log "Grok CLI custom install command failed."
+      exit 1
+    fi
+  else
+    if ! command_exists curl; then
+      log "curl is required to install Grok CLI."
+      exit 1
+    fi
+    log "Installing Grok CLI from xAI official installer..."
+    curl -fsSL https://x.ai/cli/install.sh | bash
+  fi
+
+  if ! command_exists "$grok_binary"; then
+    log "Grok CLI installation did not complete successfully."
+    exit 1
+  fi
+
+  log "Grok CLI installation completed."
 }
 
 install_gemini_cli() {
@@ -202,12 +356,22 @@ while [[ $# -gt 0 ]]; do
       ;;
     --install-gemini)
       INSTALL_GEMINI=1
+      EXPLICIT_INSTALL_FLAGS=$((EXPLICIT_INSTALL_FLAGS + 1))
       ;;
     --install-ollama)
       INSTALL_OLLAMA=1
+      EXPLICIT_INSTALL_FLAGS=$((EXPLICIT_INSTALL_FLAGS + 1))
       ;;
     --install-codex)
       INSTALL_CODEX=1
+      EXPLICIT_INSTALL_FLAGS=$((EXPLICIT_INSTALL_FLAGS + 1))
+      ;;
+    --install-grok)
+      INSTALL_GROK=1
+      EXPLICIT_INSTALL_FLAGS=$((EXPLICIT_INSTALL_FLAGS + 1))
+      ;;
+    --accept-defaults)
+      ASSUME_YES=1
       ;;
     --help|-h)
       show_help
@@ -221,6 +385,15 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+if [[ $EXPLICIT_INSTALL_FLAGS -eq 0 && $ASSUME_YES -eq 1 ]]; then
+  prompt_for_optional_components
+elif [[ $EXPLICIT_INSTALL_FLAGS -eq 0 && -t 0 && -t 1 ]]; then
+  prompt_for_optional_components
+elif [[ $EXPLICIT_INSTALL_FLAGS -eq 0 && ! -t 0 || ! -t 1 ]]; then
+  log "Non-interactive run detected; defaulting to no optional component installation."
+  log "Use --install-gemini/--install-ollama/--install-codex/--install-grok or --accept-defaults."
+fi
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   log "This project is now macOS-only. Install on macOS with this script."
@@ -244,6 +417,10 @@ fi
 
 if [[ $INSTALL_CODEX -eq 1 ]]; then
   install_codex_cli
+fi
+
+if [[ $INSTALL_GROK -eq 1 ]]; then
+  install_grok_cli
 fi
 
 mkdir -p "$INSTALL_DIR/scripts"
