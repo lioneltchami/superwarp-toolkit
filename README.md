@@ -12,7 +12,7 @@
 
 ## 🎯 What This Is
 
-Superwarp Toolkit is a **macOS-first helper layer for Warp terminal**.
+Superwarp Toolkit is a **macOS-first helper layer for the Warp terminal**.
 
 It gives you:
 
@@ -22,7 +22,7 @@ It gives you:
 - **📝 Lightweight session logging** and startup context
 - **🎛️ Optional AI integrations** through Gemini CLI, Codex CLI, and Ollama
 
-This branch is intentionally **smaller and cleaner** than the old Windows-heavy version. It is not trying to be an everything-platform. It is trying to be a solid macOS Warp toolkit that you can actually install, validate, and use.
+This branch is intentionally **smaller and cleaner** than the old Windows-heavy version. It is not trying to be an “everything platform.” It focuses on being a solid macOS Warp toolkit you can install, validate, and use.
 
 ## ✨ Highlights
 
@@ -181,7 +181,7 @@ Optional quick smoke validation:
 
 ### GitHub Actions validation
 
-This repo runs GitHub Actions on every push and PR to `main`:
+This repository runs GitHub Actions on every push and pull request to `main`:
 
 - syntax and shell checks
 - install smoke path (`./install.sh --no-permission-panes`)
@@ -189,14 +189,14 @@ This repo runs GitHub Actions on every push and PR to `main`:
 
 It helps keep the toolkit safe to clone on a fresh Mac and quickly update via git.
 
-If you want a fast command surface check:
+If you want a quick command-surface check:
 
 ```bash
 warpai-calc "2 + 2"
 warpai-codex "Summarize this session setup"
 ```
 
-`warpai-codex` is optional; you can skip that line until you’ve installed/authorized Codex.
+`warpai-codex` is optional; run this command only after you have installed and authorized Codex.
 
 ### What the installer does
 
@@ -323,7 +323,7 @@ or, on Warp Preview:
 - **Superwarp Doctor**
   Opens a doctor-oriented workspace with a pane that runs `warpai-doctor` on startup.
 
-You can then open them from Warp's `+` menu or from the terminal:
+You can open them from Warp's `+` menu or from the terminal:
 
 ```bash
 warpai-open toolkit
@@ -336,7 +336,7 @@ The helper auto-detects Warp Preview when `~/.warp-preview` exists and `~/.warp`
 
 ## 🦾 Warp-Native Superwarp Layer
 
-This repo now includes a real **Warp-native layer** on top of the shell toolkit.
+This repository now includes a real **Warp-native layer** on top of the shell toolkit.
 
 When you open the repo root in Warp, it can discover:
 
@@ -388,11 +388,11 @@ That means this project is not only a set of commands you install into your shel
 - **`Codex Assistant`**
   Sends a structured prompt to `warpai-codex` for local rollout guidance and triage.
 
-In practice, this is the beginning of the "superwarp" idea: Warp-native skills for agent behavior, Warp-native workflows for repeatable actions, and shell helpers for the actual local execution surface.
+In practice, this is the core of the Superwarp idea: Warp-native skills for agent behavior, Warp-native workflows for repeatable actions, and shell helpers for real local execution.
 
 ## ⚠️ Limitations
 
-- `zsh` is the supported startup shell path.
+- `zsh` is the supported startup shell.
 - GUI automation depends on a live Warp window and granted macOS permissions.
 - `--install-gemini` and `--install-ollama` make real system-wide dependency changes.
 - `--install-codex` is optional and requires an explicit install command or npm package export.
@@ -424,7 +424,7 @@ This macOS branch has been checked across:
 - live pane splitting
 - live screenshot capture
 
-That does not make every machine identical, but it does mean the branch is in much better shape than a raw concept repo.
+It does not mean every machine is identical, but it does mean the branch is in much better shape than a raw concept repo.
 
 ## 🧼 Uninstall
 
