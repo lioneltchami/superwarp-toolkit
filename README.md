@@ -198,6 +198,34 @@ warpai-codex "Summarize this session setup"
 
 `warpai-codex` is optional; run this command only after you have installed and authorized Codex.
 
+## 🚀 Releases
+
+This repo can publish GitHub Releases automatically when you push a version tag.
+
+Use:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The release workflow will:
+
+- build a `tar.gz` artifact from the tagged commit
+- attach a `sha256` checksum file
+- generate release notes automatically
+
+Then users can install from source as usual:
+
+```bash
+git clone https://github.com/lioneltchami/superwarp-toolkit.git
+cd superwarp-toolkit
+git checkout <tag-or-branch>
+./install.sh
+```
+
+For production-style sharing, you can also download the release asset directly from GitHub Releases.
+
 ### What the installer does
 
 - installs the suite into `~/.warp-ai-enhancement`

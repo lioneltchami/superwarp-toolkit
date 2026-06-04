@@ -1,0 +1,40 @@
+name: Superwarp Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build release artifacts
+        run: |
+          version="${GITHUB_REF_NAME}"
+          dist_dir="dist"
+          artifact="$dist_dir/superwarp-toolkit-${version}.tar.gz"
+          mkdir -p "$dist_dir"
+
+          # Archive tracked repo files only (so .git and local-only state are excluded).
+          git archive --format=tar --prefix="superwarp-toolkit-${version}/" "$GITHUB_SHA" \
+            | gzip -9 > "$artifact"
+
+          sha256sum "$artifact" > "$dist_dir/checksums.txt"
+          printf "artifact=%s\n" "$artifact" >> "$GITHUB_ENV"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.artifact }}
+            dist/checksums.txt
+          generate_release_notes: true
+          fail_on_unmatched_files: true
