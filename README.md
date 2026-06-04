@@ -198,6 +198,10 @@ warpai-codex "Summarize this session setup"
 
 `warpai-codex` is optional; run this command only after you have installed and authorized Codex.
 
+If you're working inside Warp and want a practical, screen-by-screen setup flow, see:
+
+- [Warp Usage Guide](./WARP-INSIDE.md)
+
 ## 🚀 Releases
 
 This repo can publish GitHub Releases automatically when you push a version tag.
