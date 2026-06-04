@@ -1,0 +1,10 @@
+name: Install Tab Configs
+command: >-
+  ROOT="$(git rev-parse --show-toplevel)" &&
+  export ROOT WARP_AI_ROOT="$ROOT" WARP_AI_TOOLKIT="$ROOT/scripts/warp-ai-toolkit.sh" &&
+  zsh -ic "source \"$WARP_AI_TOOLKIT\" >/dev/null; warp_ai_install_tab_configs"
+shells: ["zsh", "bash"]
+tags: ["warp", "tab-configs", "layout", "macos"]
+description: Install the suite's bundled Warp Tab Configs into the user tab configuration directory.
+author: Lionel + Codex
+source_url: https://github.com/lioneltchami/superwarp-toolkit

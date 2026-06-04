@@ -1,0 +1,10 @@
+name: Usage Snapshot
+command: >-
+  ROOT="$(git rev-parse --show-toplevel)" &&
+  export ROOT WARP_AI_ROOT="$ROOT" WARP_AI_TOOLKIT="$ROOT/scripts/warp-ai-toolkit.sh" &&
+  zsh -ic "source \"$WARP_AI_TOOLKIT\" >/dev/null; warp_ai_quick_usage; echo; warp_ai_usage"
+shells: ["zsh", "bash"]
+tags: ["warp", "usage", "quota", "history"]
+description: Show the current local Warp quota snapshot and historical local AI usage.
+author: Lionel + Codex
+source_url: https://github.com/lioneltchami/superwarp-toolkit

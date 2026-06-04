@@ -70,7 +70,7 @@ warp_ai_log_system_event() {
 }
 
 warp_ai_open_permission_panes() {
-  if command -v open >/dev/null 2>&1; then
+  if [[ -n "$(command -v open 2>/dev/null)" ]]; then
     open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility' || true
     open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Automation' || true
     open 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture' || true
@@ -93,23 +93,29 @@ warp_ai_doctor() {
   echo "TERM_PROGRAM=${TERM_PROGRAM:-unset}"
   echo
 
-  if command -v python3 >/dev/null 2>&1; then
+  if [[ -n "$(command -v python3 2>/dev/null)" ]]; then
     echo "python3: ok ($(python3 --version 2>/dev/null))"
   else
     echo "python3: missing"
     issues=1
   fi
 
-  if command -v gemini >/dev/null 2>&1; then
+  if [[ -n "$(command -v gemini 2>/dev/null)" ]]; then
     echo "gemini: ok"
   else
     echo "gemini: optional, not installed"
   fi
 
-  if command -v ollama >/dev/null 2>&1; then
+  if [[ -n "$(command -v ollama 2>/dev/null)" ]]; then
     echo "ollama: ok"
   else
     echo "ollama: optional, not installed"
+  fi
+
+  if [[ -n "$(command -v sqlite3 2>/dev/null)" ]]; then
+    echo "sqlite3: ok"
+  else
+    echo "sqlite3: optional, not installed"
   fi
 
   if [[ -f "${WARP_AI_TOOLKIT:-}" ]]; then
@@ -129,7 +135,7 @@ warp_ai_doctor() {
   echo
   echo "macOS GUI capability checks:"
 
-  if command -v osascript >/dev/null 2>&1; then
+  if [[ -n "$(command -v osascript 2>/dev/null)" ]]; then
     if osascript -e 'tell application "System Events" to count processes' >/dev/null 2>&1; then
       echo "Accessibility / System Events: likely available"
     else
@@ -154,7 +160,7 @@ warp_ai_doctor() {
     permission_warnings=1
   fi
 
-  if command -v screencapture >/dev/null 2>&1; then
+  if [[ -n "$(command -v screencapture 2>/dev/null)" ]]; then
     local probe_file
     probe_file="$(mktemp /tmp/warpai-doctor-screen-XXXXXX.png)"
     if screencapture -x "$probe_file" >/dev/null 2>&1; then
@@ -183,6 +189,449 @@ warp_ai_doctor() {
   echo
   echo "Doctor status: needs attention"
   return 1
+}
+
+warp_ai_find_usage_db() {
+  local candidate
+
+  if [[ -n "${WARP_AI_USAGE_DB:-}" ]]; then
+    if [[ -f "$WARP_AI_USAGE_DB" ]]; then
+      printf '%s\n' "$WARP_AI_USAGE_DB"
+      return 0
+    fi
+    return 1
+  fi
+
+  for candidate in \
+    "$HOME/Library/Application Support/dev.warp.Warp-Stable/warp.sqlite" \
+    "$HOME/Library/Application Support/dev.warp.Warp-Beta/warp.sqlite" \
+    "$HOME/Library/Application Support/dev.warp.Warp-Nightly/warp.sqlite" \
+    "$HOME/Library/Application Support/dev.warp.Warp/warp.sqlite"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+warp_ai_find_usage_plist() {
+  local candidate
+
+  if [[ -n "${WARP_AI_USAGE_PLIST:-}" ]]; then
+    if [[ -f "$WARP_AI_USAGE_PLIST" ]]; then
+      printf '%s\n' "$WARP_AI_USAGE_PLIST"
+      return 0
+    fi
+    return 1
+  fi
+
+  for candidate in \
+    "$HOME/Library/Preferences/dev.warp.Warp-Stable.plist" \
+    "$HOME/Library/Preferences/dev.warp.Warp-Beta.plist" \
+    "$HOME/Library/Preferences/dev.warp.Warp-Nightly.plist" \
+    "$HOME/Library/Preferences/dev.warp.Warp.plist"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+warp_ai_usage_plist_summary() {
+  local plist_path="$1"
+
+  if [[ -z "$plist_path" || ! -f "$plist_path" ]]; then
+    echo "plist_error=Warp preferences file not found"
+    return 0
+  fi
+
+  if [[ -z "$(command -v python3 2>/dev/null)" ]]; then
+    echo "plist_error=python3 is required to parse the Warp preferences plist"
+    return 0
+  fi
+
+  python3 - "$plist_path" <<'PY'
+import json
+import plistlib
+import sys
+from datetime import datetime, timezone
+
+path = sys.argv[1]
+
+try:
+    with open(path, "rb") as handle:
+        plist = plistlib.load(handle)
+except Exception as exc:
+    print(f"plist_error={exc}")
+    raise SystemExit(0)
+
+limit_key = next((key for key in ("AIRequestLimitInfo", "AIAssistantRequestLimitInfo") if key in plist), None)
+if not limit_key:
+    print("plist_error=missing AIRequestLimitInfo")
+    raise SystemExit(0)
+
+raw_limit_info = plist.get(limit_key)
+if isinstance(raw_limit_info, bytes):
+    raw_limit_info = raw_limit_info.decode("utf-8", "replace")
+
+if not isinstance(raw_limit_info, str):
+    print("plist_error=invalid AIRequestLimitInfo value")
+    raise SystemExit(0)
+
+try:
+    limit_info = json.loads(raw_limit_info)
+except Exception as exc:
+    print(f"plist_error={exc}")
+    raise SystemExit(0)
+
+try:
+    requests_used = int(limit_info.get("num_requests_used_since_refresh") or 0)
+    requests_limit = int(limit_info.get("limit") or 0)
+    is_unlimited = bool(limit_info.get("is_unlimited"))
+    voice_request_limit = int(limit_info.get("voice_request_limit") or 0)
+    max_codebase_indices = int(limit_info.get("max_codebase_indices") or 0)
+    next_refresh_time = str(limit_info.get("next_refresh_time") or "")
+except Exception as exc:
+    print(f"plist_error={exc}")
+    raise SystemExit(0)
+
+if is_unlimited:
+    subscription_type = "Pro"
+elif requests_limit >= 2500 and voice_request_limit >= 999999 and max_codebase_indices >= 40:
+    subscription_type = "Pro"
+elif requests_limit >= 2500:
+    subscription_type = "Standard"
+elif requests_limit >= 150:
+    subscription_type = "Basic"
+else:
+    subscription_type = "Free"
+
+print(f"plist_path={path}")
+print(f"limit_key={limit_key}")
+print(f"requests_used={requests_used}")
+print(f"requests_limit={requests_limit}")
+print(f"is_unlimited={str(is_unlimited).lower()}")
+print(f"subscription_type={subscription_type}")
+print(f"next_refresh_time={next_refresh_time}")
+print(f"voice_request_limit={voice_request_limit}")
+print(f"max_codebase_indices={max_codebase_indices}")
+PY
+}
+
+warp_ai_usage() {
+  local db_path plist_path plist_output
+  local requests_used=0
+  local requests_limit=0
+  local is_unlimited=false
+  local subscription_type="Unknown"
+  local next_refresh_time="unknown"
+  local voice_request_limit=0
+  local max_codebase_indices=0
+
+  db_path="$(warp_ai_find_usage_db 2>/dev/null || true)"
+  plist_path="$(warp_ai_find_usage_plist 2>/dev/null || true)"
+
+  echo "Warp AI Usage Report"
+  echo "===================="
+  echo
+
+  if [[ -n "$plist_path" ]]; then
+    plist_output="$(warp_ai_usage_plist_summary "$plist_path" 2>/dev/null || true)"
+    if [[ "$plist_output" == plist_error=* ]]; then
+      echo "Plist snapshot: unavailable (${plist_output#plist_error=})"
+    else
+      while IFS='=' read -r key value; do
+        case "$key" in
+          requests_used) requests_used="$value" ;;
+          requests_limit) requests_limit="$value" ;;
+          is_unlimited) is_unlimited="$value" ;;
+          subscription_type) subscription_type="$value" ;;
+          next_refresh_time) next_refresh_time="$value" ;;
+          voice_request_limit) voice_request_limit="$value" ;;
+          max_codebase_indices) max_codebase_indices="$value" ;;
+        esac
+      done <<< "$plist_output"
+
+      echo "Plist snapshot: $plist_path"
+      echo "  plan: $subscription_type"
+      if [[ "$is_unlimited" == "true" ]]; then
+        echo "  usage: unlimited"
+      else
+        local percent
+        percent="$(awk -v used="$requests_used" -v limit="$requests_limit" 'BEGIN { if (limit > 0) printf "%.1f", (used / limit) * 100; else printf "0.0" }')"
+        echo "  usage: ${requests_used}/${requests_limit} (${percent}%)"
+      fi
+      echo "  next refresh: $next_refresh_time"
+      echo "  voice request limit: $voice_request_limit"
+      echo "  max codebase indices: $max_codebase_indices"
+    fi
+  else
+    echo "Plist snapshot: not found"
+  fi
+
+  echo
+
+  if [[ -n "$db_path" ]]; then
+    if [[ -z "$(command -v sqlite3 2>/dev/null)" ]]; then
+      echo "SQLite history: sqlite3 not available"
+      return 0
+    fi
+
+    local ai_table schema_columns
+    ai_table="$(sqlite3 "$db_path" "SELECT name FROM sqlite_master WHERE type='table' AND name='ai_queries';" 2>/dev/null || true)"
+    if [[ "$ai_table" != "ai_queries" ]]; then
+      echo "SQLite history: ai_queries table not found in $db_path"
+      return 0
+    fi
+
+    schema_columns="$(sqlite3 "$db_path" "PRAGMA table_info(ai_queries);" 2>/dev/null || true)"
+    if [[ "$schema_columns" != *"|start_ts|"* || "$schema_columns" != *"|model_id|"* ]]; then
+      echo "SQLite history: ai_queries schema unsupported in $db_path"
+      return 0
+    fi
+
+    local total_requests today_requests weekly_requests first_use last_use active_days avg_per_day
+    total_requests="$(sqlite3 "$db_path" "SELECT COUNT(*) FROM ai_queries;" 2>/dev/null || true)"
+    if [[ -z "$total_requests" || "$total_requests" == "0" ]]; then
+      echo "SQLite history: no AI query rows found"
+      return 0
+    fi
+
+    today_requests="$(sqlite3 "$db_path" "SELECT COUNT(*) FROM ai_queries WHERE DATE(start_ts) = DATE('now');" 2>/dev/null || true)"
+    weekly_requests="$(sqlite3 "$db_path" "SELECT COUNT(*) FROM ai_queries WHERE start_ts >= datetime('now', '-7 days');" 2>/dev/null || true)"
+    first_use="$(sqlite3 "$db_path" "SELECT DATE(MIN(start_ts)) FROM ai_queries;" 2>/dev/null || true)"
+    last_use="$(sqlite3 "$db_path" "SELECT DATE(MAX(start_ts)) FROM ai_queries;" 2>/dev/null || true)"
+    active_days="$(sqlite3 "$db_path" "SELECT CAST(julianday(DATE(MAX(start_ts))) - julianday(DATE(MIN(start_ts))) + 1 AS INTEGER) FROM ai_queries;" 2>/dev/null || true)"
+    if [[ -z "$active_days" || "$active_days" == "0" ]]; then
+      active_days=1
+    fi
+    avg_per_day="$(awk -v total="$total_requests" -v days="$active_days" 'BEGIN { if (days > 0) printf "%.1f", total / days; else printf "0.0" }')"
+
+    echo "SQLite history: $db_path"
+    echo "  total requests: $total_requests"
+    echo "  today: $today_requests"
+    echo "  last 7 days: $weekly_requests"
+    echo "  first use: $first_use"
+    echo "  last use: $last_use"
+    echo "  active days: $active_days"
+    echo "  avg/day: $avg_per_day"
+    echo "  top usage days:"
+    while IFS='|' read -r date requests; do
+      [[ -n "$date" ]] || continue
+      echo "    $date: $requests"
+    done < <(sqlite3 "$db_path" "SELECT DATE(start_ts), COUNT(*) FROM ai_queries GROUP BY DATE(start_ts) ORDER BY COUNT(*) DESC, DATE(start_ts) DESC LIMIT 5;" 2>/dev/null || true)
+    echo "  model breakdown:"
+    while IFS='|' read -r model requests; do
+      [[ -n "$model" ]] || continue
+      echo "    $model: $requests"
+    done < <(sqlite3 "$db_path" "SELECT COALESCE(NULLIF(model_id, ''), 'unknown'), COUNT(*) FROM ai_queries GROUP BY COALESCE(NULLIF(model_id, ''), 'unknown') ORDER BY COUNT(*) DESC, 1 ASC;" 2>/dev/null || true)
+  else
+    echo "SQLite history: not found"
+  fi
+}
+
+warp_ai_quick_usage() {
+  local db_path plist_path plist_output
+  local summary_parts=()
+  local requests_used=0
+  local requests_limit=0
+  local is_unlimited=false
+  local subscription_type="Unknown"
+  local next_refresh_time="unknown"
+
+  db_path="$(warp_ai_find_usage_db 2>/dev/null || true)"
+  plist_path="$(warp_ai_find_usage_plist 2>/dev/null || true)"
+
+  if [[ -n "$plist_path" ]]; then
+    plist_output="$(warp_ai_usage_plist_summary "$plist_path" 2>/dev/null || true)"
+    if [[ "$plist_output" != plist_error=* ]]; then
+      while IFS='=' read -r key value; do
+        case "$key" in
+          requests_used) requests_used="$value" ;;
+          requests_limit) requests_limit="$value" ;;
+          is_unlimited) is_unlimited="$value" ;;
+          subscription_type) subscription_type="$value" ;;
+          next_refresh_time) next_refresh_time="$value" ;;
+        esac
+      done <<< "$plist_output"
+
+      if [[ "$is_unlimited" == "true" ]]; then
+        summary_parts+=("plan ${subscription_type} (unlimited)")
+      else
+        local percent
+        percent="$(awk -v used="$requests_used" -v limit="$requests_limit" 'BEGIN { if (limit > 0) printf "%.1f", (used / limit) * 100; else printf "0.0" }')"
+        summary_parts+=("plan ${subscription_type} ${requests_used}/${requests_limit} (${percent}%)")
+      fi
+      summary_parts+=("refresh ${next_refresh_time}")
+    fi
+  fi
+
+  if [[ -n "$db_path" && -n "$(command -v sqlite3 2>/dev/null)" ]]; then
+    local total_requests today_requests weekly_requests
+    local ai_table schema_columns
+    ai_table="$(sqlite3 "$db_path" "SELECT name FROM sqlite_master WHERE type='table' AND name='ai_queries';" 2>/dev/null || true)"
+    if [[ "$ai_table" == "ai_queries" ]]; then
+      schema_columns="$(sqlite3 "$db_path" "PRAGMA table_info(ai_queries);" 2>/dev/null || true)"
+      if [[ "$schema_columns" != *"|start_ts|"* || "$schema_columns" != *"|model_id|"* ]]; then
+        summary_parts+=("history unsupported")
+      else
+        total_requests="$(sqlite3 "$db_path" "SELECT COUNT(*) FROM ai_queries;" 2>/dev/null || true)"
+        if [[ -n "$total_requests" && "$total_requests" != "0" ]]; then
+          today_requests="$(sqlite3 "$db_path" "SELECT COUNT(*) FROM ai_queries WHERE DATE(start_ts) = DATE('now');" 2>/dev/null || true)"
+          weekly_requests="$(sqlite3 "$db_path" "SELECT COUNT(*) FROM ai_queries WHERE start_ts >= datetime('now', '-7 days');" 2>/dev/null || true)"
+          summary_parts+=("today ${today_requests}")
+          summary_parts+=("7d ${weekly_requests}")
+        fi
+      fi
+    fi
+  fi
+
+  if [[ ${#summary_parts[@]} -eq 0 ]]; then
+    echo "Warp AI: no usage data found"
+    return 0
+  fi
+
+  local summary
+  summary="$(IFS=' | '; print -r -- "${summary_parts[*]}")"
+  echo "Warp AI: $summary"
+}
+
+warp_ai_tab_config_dir() {
+  if [[ -n "${WARP_AI_TAB_CONFIG_DIR:-}" ]]; then
+    printf '%s\n' "$WARP_AI_TAB_CONFIG_DIR"
+    return 0
+  fi
+
+  if [[ -d "$HOME/.warp-preview" && ! -d "$HOME/.warp" ]]; then
+    printf '%s\n' "$HOME/.warp-preview/tab_configs"
+    return 0
+  fi
+
+  printf '%s\n' "$HOME/.warp/tab_configs"
+}
+
+warp_ai_uri_scheme() {
+  if [[ -n "${WARP_AI_URI_SCHEME:-}" ]]; then
+    printf '%s\n' "$WARP_AI_URI_SCHEME"
+    return 0
+  fi
+
+  if [[ -d "$HOME/.warp-preview" && ! -d "$HOME/.warp" ]]; then
+    printf '%s\n' "warppreview"
+    return 0
+  fi
+
+  printf '%s\n' "warp"
+}
+
+warp_ai_install_tab_configs() {
+  local tab_dir install_dir logs_dir profile_path toolkit_config doctor_config
+  tab_dir="$(warp_ai_tab_config_dir)"
+  install_dir="${WARP_AI_ROOT:-$HOME/.warp-ai-enhancement}"
+  logs_dir="${WARP_AI_LOG_DIR:-$HOME/Library/Logs/WarpAI}"
+  profile_path="${install_dir}/warp-ai-enhancement-profile.zsh"
+  toolkit_config="${tab_dir}/superwarp_toolkit.toml"
+  doctor_config="${tab_dir}/superwarp_doctor.toml"
+
+  mkdir -p "$tab_dir" "$logs_dir"
+
+  cat > "$toolkit_config" <<EOF
+name = "Superwarp Toolkit"
+title = "Superwarp Toolkit"
+color = "blue"
+
+[[panes]]
+id = "root"
+split = "horizontal"
+children = ["toolkit", "logs"]
+
+[[panes]]
+id = "toolkit"
+type = "terminal"
+directory = "$install_dir"
+commands = [
+  "printf 'Superwarp toolkit ready in %s\\n' \"$install_dir\"",
+]
+is_focused = true
+
+[[panes]]
+id = "logs"
+type = "terminal"
+directory = "$logs_dir"
+commands = [
+  "ls -lah",
+]
+EOF
+
+  cat > "$doctor_config" <<EOF
+name = "Superwarp Doctor"
+title = "Superwarp Doctor"
+color = "yellow"
+
+[[panes]]
+id = "root"
+split = "vertical"
+children = ["doctor", "logs"]
+
+[[panes]]
+id = "doctor"
+type = "terminal"
+shell = "zsh"
+directory = "$install_dir"
+commands = [
+  "source \"$profile_path\" >/dev/null 2>&1; warp_ai_doctor",
+]
+is_focused = true
+
+[[panes]]
+id = "logs"
+type = "terminal"
+directory = "$logs_dir"
+commands = [
+  "ls -lah",
+]
+EOF
+
+  echo "Installed Warp Tab Configs:"
+  echo "  - $toolkit_config"
+  echo "  - $doctor_config"
+  echo "Open them in Warp from the + menu or via warp://tab_config/<name>."
+}
+
+warp_ai_open() {
+  local target="${1:-}"
+  local opener="${WARP_AI_OPEN_BIN:-open}"
+  local uri=""
+  local scheme
+  scheme="$(warp_ai_uri_scheme)"
+
+  case "$target" in
+    toolkit)
+      uri="${scheme}://tab_config/superwarp_toolkit"
+      ;;
+    doctor)
+      uri="${scheme}://tab_config/superwarp_doctor"
+      ;;
+    permissions)
+      warp_ai_open_permission_panes
+      return $?
+      ;;
+    *)
+      echo "Usage: warpai-open toolkit | doctor | permissions"
+      return 1
+      ;;
+  esac
+
+  if [[ "${WARP_AI_OPEN_URL_ONLY:-0}" == "1" ]]; then
+    echo "$uri"
+    return 0
+  fi
+
+  "$opener" "$uri"
 }
 
 warp_ai_should_show_welcome() {
@@ -216,7 +665,7 @@ warp_ai_calculate() {
   fi
 
   warp_ai_log "TOOL" "Calculation requested: $expression"
-  if command -v python3 >/dev/null 2>&1; then
+  if [[ -n "$(command -v python3 2>/dev/null)" ]]; then
     WARP_AI_EXPRESSION="$expression" python3 - <<'PY'
 import ast
 import os
@@ -266,12 +715,12 @@ warp_ai_invoke_web_search() {
   fi
 
   warp_ai_log "TOOL" "Web search requested: $query"
-  if command -v gemini >/dev/null 2>&1; then
+  if [[ -n "$(command -v gemini 2>/dev/null)" ]]; then
     gemini -p "Use google_web_search to research this query and return a concise summary with source citations: ${query}"
     return $?
   fi
 
-  if command -v python3 >/dev/null 2>&1; then
+  if [[ -n "$(command -v python3 2>/dev/null)" ]]; then
     WARP_AI_QUERY="$query" python3 - <<'PY'
 import urllib.request, urllib.parse, json
 query = urllib.parse.quote(__import__('os').environ.get("WARP_AI_QUERY", ""))
@@ -297,7 +746,7 @@ warp_ai_invoke_image_analysis() {
   fi
 
   warp_ai_log "TOOL" "Image analysis requested: $image_path"
-  if ! command -v ollama >/dev/null 2>&1; then
+  if [[ -z "$(command -v ollama 2>/dev/null)" ]]; then
     echo "⚠️ Ollama is not installed. Install from https://ollama.com"
     return 1
   fi
@@ -335,7 +784,7 @@ warp_ai_command() {
 
   case "$lowered" in
     *split*right*|*right*split*)
-      if command -v osascript >/dev/null 2>&1; then
+      if [[ -n "$(command -v osascript 2>/dev/null)" ]]; then
         if warp_ai_exec_apple_events "d" "command down"; then
           echo "✅ Attempted split-right via AppleScript (Cmd+D)"
         else
@@ -347,7 +796,7 @@ warp_ai_command() {
       fi
       ;;
     *split*down*|*down*split*)
-      if command -v osascript >/dev/null 2>&1; then
+      if [[ -n "$(command -v osascript 2>/dev/null)" ]]; then
         if warp_ai_exec_apple_events "d" "command down, shift down"; then
           echo "✅ Attempted split-down via AppleScript (Shift+Cmd+D)"
         else
@@ -359,7 +808,7 @@ warp_ai_command() {
       fi
       ;;
     *close*panel*|*panel*close*)
-      if command -v osascript >/dev/null 2>&1; then
+      if [[ -n "$(command -v osascript 2>/dev/null)" ]]; then
         if warp_ai_exec_apple_events "w" "command down"; then
           echo "✅ Attempted close panel via AppleScript (Cmd+W)"
         else
@@ -371,7 +820,7 @@ warp_ai_command() {
       fi
       ;;
     screenshot*)
-      if command -v screencapture >/dev/null 2>&1; then
+      if [[ -n "$(command -v screencapture 2>/dev/null)" ]]; then
         local output="${1:-$HOME/Desktop/warp-ai-screenshot-$(date +%Y%m%d-%H%M%S).png}"
         if screencapture "$output"; then
           echo "✅ Saved screenshot: $output"
@@ -465,5 +914,9 @@ alias warpai-calc='warp_ai_calculate'
 alias warpai-cmd='warp_ai_command'
 alias warpai-doctor='warp_ai_doctor'
 alias warpai-permissions='warp_ai_open_permission_panes'
+alias warpai-usage='warp_ai_usage'
+alias warpai-quick='warp_ai_quick_usage'
+alias warpai-layout-install='warp_ai_install_tab_configs'
+alias warpai-open='warp_ai_open'
 
 export WARP_AI_READY=1

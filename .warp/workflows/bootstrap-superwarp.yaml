@@ -1,0 +1,10 @@
+name: Bootstrap Superwarp
+command: >-
+  ROOT="$(git rev-parse --show-toplevel)" &&
+  export ROOT WARP_AI_ROOT="$ROOT" WARP_AI_TOOLKIT="$ROOT/scripts/warp-ai-toolkit.sh" &&
+  zsh -ic "source \"$WARP_AI_TOOLKIT\" >/dev/null; warp_ai_install_tab_configs; echo; warp_ai_doctor; echo; warp_ai_quick_usage"
+shells: ["zsh", "bash"]
+tags: ["warp", "bootstrap", "doctor", "tab-configs", "usage"]
+description: Install the suite's Tab Configs, run the doctor, and print a quick Warp usage snapshot.
+author: Lionel + Codex
+source_url: https://github.com/lioneltchami/superwarp-toolkit

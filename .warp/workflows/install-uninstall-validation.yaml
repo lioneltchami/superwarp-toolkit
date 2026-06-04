@@ -1,0 +1,12 @@
+name: Install Uninstall Validation
+command: >-
+  ROOT="$(git rev-parse --show-toplevel)" &&
+  TMP_HOME="$(mktemp -d)" &&
+  echo "Using temp HOME: $TMP_HOME" &&
+  HOME="$TMP_HOME" bash "$ROOT/install.sh" --no-permission-panes &&
+  HOME="$TMP_HOME" bash "$ROOT/uninstall.sh"
+shells: ["zsh", "bash"]
+tags: ["warp", "install", "uninstall", "validation"]
+description: Prove the installer and uninstall flow in a temporary HOME without touching the real shell setup.
+author: Lionel + Codex
+source_url: https://github.com/lioneltchami/superwarp-toolkit

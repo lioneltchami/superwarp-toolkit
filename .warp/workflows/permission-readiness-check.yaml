@@ -1,0 +1,14 @@
+name: Permission Readiness Check
+command: >-
+  ROOT="$(git rev-parse --show-toplevel)" &&
+  export ROOT WARP_AI_ROOT="$ROOT" WARP_AI_TOOLKIT="$ROOT/scripts/warp-ai-toolkit.sh" &&
+  zsh -ic "source \"$WARP_AI_TOOLKIT\" >/dev/null; warp_ai_doctor; if [[ \"{{open_permission_panes}}\" == \"yes\" ]]; then echo; warp_ai_open_permission_panes; fi"
+shells: ["zsh", "bash"]
+tags: ["warp", "permissions", "automation", "macos"]
+description: Check Accessibility, Automation, and Screen Recording readiness for Warp pane automation and screenshots.
+author: Lionel + Codex
+source_url: https://github.com/lioneltchami/superwarp-toolkit
+arguments:
+  - name: open_permission_panes
+    description: Set to yes to reopen the macOS Privacy and Security panes after the doctor report.
+    default_value: "no"

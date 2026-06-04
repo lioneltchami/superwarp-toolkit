@@ -1,0 +1,11 @@
+name: Suite Health Check
+command: >-
+  ROOT="$(git rev-parse --show-toplevel)" &&
+  export ROOT WARP_AI_ROOT="$ROOT" WARP_AI_TOOLKIT="$ROOT/scripts/warp-ai-toolkit.sh" &&
+  zsh -ic "source \"$WARP_AI_TOOLKIT\" >/dev/null; warp_ai_doctor" &&
+  bash "$ROOT/tests/smoke.sh"
+shells: ["zsh", "bash"]
+tags: ["warp", "toolkit", "health", "tests"]
+description: Run the toolkit doctor and the full smoke suite for this repository.
+author: Lionel + Codex
+source_url: https://github.com/lioneltchami/superwarp-toolkit

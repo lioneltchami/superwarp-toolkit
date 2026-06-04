@@ -76,6 +76,272 @@ test_uninstall_removes_install_dir() {
   [[ ! -d "$home_dir/.warp-ai-enhancement" ]] || fail "install dir still present after uninstall"
 }
 
+test_repo_native_assets_exist() {
+  local required_files=(
+    "$ROOT_DIR/AGENTS.md"
+    "$ROOT_DIR/WARP.md"
+    "$ROOT_DIR/.agents/skills/suite-maintainer/SKILL.md"
+    "$ROOT_DIR/.agents/skills/tab-config-installer/SKILL.md"
+    "$ROOT_DIR/.agents/skills/warp-permission-doctor/SKILL.md"
+    "$ROOT_DIR/.agents/skills/usage-session-analyst/SKILL.md"
+    "$ROOT_DIR/.warp/workflows/bootstrap-superwarp.yaml"
+    "$ROOT_DIR/.warp/workflows/install-tab-configs.yaml"
+    "$ROOT_DIR/.warp/workflows/suite-health-check.yaml"
+    "$ROOT_DIR/.warp/workflows/permission-readiness-check.yaml"
+    "$ROOT_DIR/.warp/workflows/usage-snapshot.yaml"
+    "$ROOT_DIR/.warp/workflows/install-suite-safely.yaml"
+    "$ROOT_DIR/.warp/workflows/install-uninstall-validation.yaml"
+  )
+
+  local path
+  for path in "${required_files[@]}"; do
+    [[ -f "$path" ]] || fail "expected repo-native asset missing: $path"
+  done
+
+  grep -Fq "Warp-Native Superwarp Layer" "$ROOT_DIR/README.md" || fail "README missing Warp-native section"
+  grep -Fq ".agents/skills/" "$ROOT_DIR/WARP.md" || fail "WARP.md missing skill guidance"
+  grep -Fq "warpai-open" "$ROOT_DIR/AGENTS.md" || fail "AGENTS.md missing warpai-open command"
+}
+
+test_warp_asset_contracts() {
+  ruby - "$ROOT_DIR" <<'RUBY' || exit 1
+require "yaml"
+
+root = ARGV.fetch(0)
+workflow_paths = Dir[File.join(root, ".warp/workflows/*.yaml")]
+abort("FAIL: no workflow files found") if workflow_paths.empty?
+
+workflow_paths.each do |path|
+  doc = YAML.safe_load(File.read(path), permitted_classes: [], aliases: false)
+  abort("FAIL: workflow #{path} is empty") unless doc.is_a?(Hash)
+  %w[name command].each do |field|
+    abort("FAIL: workflow #{path} missing #{field}") if doc[field].to_s.strip.empty?
+  end
+  shells = doc["shells"]
+  if shells
+    allowed = %w[zsh bash fish]
+    abort("FAIL: workflow #{path} has invalid shells") unless shells.is_a?(Array) && shells.all? { |s| allowed.include?(s) }
+  end
+
+  placeholders = doc["command"].scan(/\{\{([^}]+)\}\}/).flatten.uniq.sort
+  arg_names = Array(doc["arguments"]).map { |arg| arg["name"] }.compact.sort
+  abort("FAIL: workflow #{path} placeholders #{placeholders.inspect} do not match arguments #{arg_names.inspect}") unless placeholders == arg_names
+end
+RUBY
+
+  local skill
+  for skill in "$ROOT_DIR"/.agents/skills/*/SKILL.md; do
+    grep -Fq -- "---" "$skill" || fail "skill missing frontmatter fence: $skill"
+    grep -Eq '^name: ' "$skill" || fail "skill missing name frontmatter: $skill"
+    grep -Eq '^description: ' "$skill" || fail "skill missing description frontmatter: $skill"
+  done
+}
+
+test_repo_doctor_uses_repo_toolkit_path() {
+  local output
+  output="$(HOME="$(mktemp -d)" TERM_PROGRAM=WarpTerminal zsh -ic 'ROOT="'"$ROOT_DIR"'"; export WARP_AI_ROOT="$ROOT" WARP_AI_TOOLKIT="$ROOT/scripts/warp-ai-toolkit.sh"; source "$WARP_AI_TOOLKIT" >/dev/null; warp_ai_doctor' 2>&1)"
+  assert_contains "$output" "toolkit file: ok"
+}
+
+test_tab_config_install() {
+  local home_dir output
+  home_dir="$(mktemp -d)"
+  HOME="$home_dir" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+
+  output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-layout-install' 2>&1)"
+  assert_contains "$output" "Installed Warp Tab Configs:"
+  [[ -f "$home_dir/.warp/tab_configs/superwarp_toolkit.toml" ]] || fail "toolkit tab config missing"
+  [[ -f "$home_dir/.warp/tab_configs/superwarp_doctor.toml" ]] || fail "doctor tab config missing"
+  grep -Fq 'name = "Superwarp Toolkit"' "$home_dir/.warp/tab_configs/superwarp_toolkit.toml" || fail "toolkit tab config name missing"
+  grep -Fq 'warp_ai_doctor' "$home_dir/.warp/tab_configs/superwarp_doctor.toml" || fail "doctor tab config command missing"
+
+  output="$(HOME="$home_dir" WARP_AI_OPEN_URL_ONLY=1 TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-open toolkit; warpai-open doctor' 2>&1)"
+  assert_contains "$output" "warp://tab_config/superwarp_toolkit"
+  assert_contains "$output" "warp://tab_config/superwarp_doctor"
+}
+
+test_tab_config_preview_detection() {
+  local home_dir output
+  home_dir="$(mktemp -d)"
+  mkdir -p "$home_dir/.warp-preview"
+
+  HOME="$home_dir" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+  output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-layout-install' 2>&1)"
+  [[ -f "$home_dir/.warp-preview/tab_configs/superwarp_toolkit.toml" ]] || fail "preview toolkit tab config missing"
+  [[ -f "$home_dir/.warp-preview/tab_configs/superwarp_doctor.toml" ]] || fail "preview doctor tab config missing"
+
+  output="$(HOME="$home_dir" WARP_AI_OPEN_URL_ONLY=1 TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-open toolkit; warpai-open doctor' 2>&1)"
+  assert_contains "$output" "warppreview://tab_config/superwarp_toolkit"
+  assert_contains "$output" "warppreview://tab_config/superwarp_doctor"
+}
+
+create_usage_fixtures() {
+  local fixture_dir="$1"
+  local db_path="$fixture_dir/warp.sqlite"
+  local plist_path="$fixture_dir/dev.warp.Warp-Stable.plist"
+  local today two_days_ago ten_days_ago next_refresh_time
+  local fixture_values
+
+  fixture_values="$(python3 - <<'PY'
+from datetime import datetime, timedelta, timezone
+
+now = datetime.now()
+print((now.replace(hour=9, minute=0, second=0, microsecond=0)).strftime("%Y-%m-%d %H:%M:%S"))
+print((now - timedelta(days=2)).replace(hour=9, minute=0, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M:%S"))
+print((now - timedelta(days=10)).replace(hour=9, minute=0, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M:%S"))
+print((now + timedelta(days=1)).astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"))
+PY
+)"
+
+  today="$(printf '%s\n' "$fixture_values" | sed -n '1p')"
+  two_days_ago="$(printf '%s\n' "$fixture_values" | sed -n '2p')"
+  ten_days_ago="$(printf '%s\n' "$fixture_values" | sed -n '3p')"
+  next_refresh_time="$(printf '%s\n' "$fixture_values" | sed -n '4p')"
+
+  sqlite3 "$db_path" <<SQL
+CREATE TABLE ai_queries (start_ts TEXT NOT NULL, model_id TEXT NOT NULL);
+INSERT INTO ai_queries (start_ts, model_id) VALUES
+  ('$today', 'gpt-5'),
+  ('$two_days_ago', 'claude-3.7-sonnet'),
+  ('$ten_days_ago', 'gemini-2.5-pro');
+SQL
+
+  python3 - "$plist_path" "$next_refresh_time" <<'PY'
+import json
+import plistlib
+import sys
+
+path = sys.argv[1]
+next_refresh_time = sys.argv[2]
+
+payload = {
+    "AIRequestLimitInfo": json.dumps(
+        {
+            "num_requests_used_since_refresh": 224,
+            "limit": 2500,
+            "is_unlimited": False,
+            "next_refresh_time": next_refresh_time,
+            "voice_request_limit": 999999,
+            "max_codebase_indices": 40,
+        }
+    )
+}
+
+with open(path, "wb") as handle:
+    plistlib.dump(payload, handle)
+PY
+}
+
+test_usage_helpers_with_fixtures() {
+  local home_dir fixture_dir db_path plist_path output
+  home_dir="$(mktemp -d)"
+  fixture_dir="$(mktemp -d)"
+  db_path="$fixture_dir/warp.sqlite"
+  plist_path="$fixture_dir/dev.warp.Warp-Stable.plist"
+
+  create_usage_fixtures "$fixture_dir"
+  HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+
+  output="$(HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-usage; warpai-quick' 2>&1)"
+  assert_contains "$output" "Warp AI Usage Report"
+  assert_contains "$output" "plan: Pro"
+  assert_contains "$output" "usage: 224/2500"
+  assert_contains "$output" "total requests: 3"
+  assert_contains "$output" "today: 1"
+  assert_contains "$output" "last 7 days: 2"
+  assert_contains "$output" "model breakdown"
+  assert_contains "$output" "Warp AI: plan Pro 224/2500"
+}
+
+test_usage_helpers_handle_missing_data() {
+  local home_dir output
+  home_dir="$(mktemp -d)"
+  HOME="$home_dir" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+
+  output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-usage; warpai-quick' 2>&1)"
+  assert_contains "$output" "Plist snapshot: not found"
+  assert_contains "$output" "SQLite history: not found"
+  assert_contains "$output" "Warp AI: no usage data found"
+}
+
+test_usage_helpers_handle_unsupported_sqlite_schema() {
+  local home_dir fixture_dir db_path plist_path output
+  home_dir="$(mktemp -d)"
+  fixture_dir="$(mktemp -d)"
+  db_path="$fixture_dir/warp.sqlite"
+  plist_path="$fixture_dir/dev.warp.Warp-Stable.plist"
+
+  sqlite3 "$db_path" <<SQL
+CREATE TABLE ai_queries (created_at TEXT NOT NULL, model TEXT NOT NULL);
+INSERT INTO ai_queries (created_at, model) VALUES ('2026-06-04 09:00:00', 'gpt-5');
+SQL
+
+  python3 - "$plist_path" <<'PY'
+import json
+import plistlib
+import sys
+
+path = sys.argv[1]
+payload = {
+    "AIRequestLimitInfo": json.dumps(
+        {
+            "num_requests_used_since_refresh": 5,
+            "limit": 100,
+            "is_unlimited": False,
+            "next_refresh_time": "2026-06-05T18:40:59Z",
+        }
+    )
+}
+
+with open(path, "wb") as handle:
+    plistlib.dump(payload, handle)
+PY
+
+  HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+  output="$(HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-usage; warpai-quick' 2>&1)"
+  assert_contains "$output" "SQLite history: ai_queries schema unsupported"
+  assert_contains "$output" "history unsupported"
+}
+
+test_usage_helpers_handle_malformed_plist_values() {
+  local home_dir fixture_dir db_path plist_path output
+  home_dir="$(mktemp -d)"
+  fixture_dir="$(mktemp -d)"
+  db_path="$fixture_dir/warp.sqlite"
+  plist_path="$fixture_dir/dev.warp.Warp-Stable.plist"
+
+  sqlite3 "$db_path" <<SQL
+CREATE TABLE ai_queries (start_ts TEXT NOT NULL, model_id TEXT NOT NULL);
+INSERT INTO ai_queries (start_ts, model_id) VALUES ('2026-06-04 09:00:00', 'gpt-5');
+SQL
+
+  python3 - "$plist_path" <<'PY'
+import json
+import plistlib
+import sys
+
+path = sys.argv[1]
+payload = {
+    "AIRequestLimitInfo": json.dumps(
+        {
+            "num_requests_used_since_refresh": "not-a-number",
+            "limit": 100,
+            "is_unlimited": False,
+            "next_refresh_time": "2026-06-05T18:40:59Z",
+        }
+    )
+}
+
+with open(path, "wb") as handle:
+    plistlib.dump(payload, handle)
+PY
+
+  HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+  output="$(HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-usage; warpai-quick' 2>&1)"
+  assert_contains "$output" "Plist snapshot: unavailable"
+  assert_contains "$output" "Warp AI: today 1 7d 1"
+}
+
 printf 'Running smoke tests...\n'
 test_default_install
 test_custom_install_dir
@@ -83,4 +349,13 @@ test_unknown_flag_rejected
 test_unrelated_zshrc_comment_does_not_block_install
 test_help_includes_new_flags
 test_uninstall_removes_install_dir
+test_repo_native_assets_exist
+test_warp_asset_contracts
+test_repo_doctor_uses_repo_toolkit_path
+test_tab_config_install
+test_tab_config_preview_detection
+test_usage_helpers_with_fixtures
+test_usage_helpers_handle_missing_data
+test_usage_helpers_handle_unsupported_sqlite_schema
+test_usage_helpers_handle_malformed_plist_values
 printf 'Smoke tests passed.\n'

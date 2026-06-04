@@ -1,0 +1,11 @@
+name: Install Suite Safely
+command: ROOT="$(git rev-parse --show-toplevel)" && bash "$ROOT/install.sh" {{extra_flags}}
+shells: ["zsh", "bash"]
+tags: ["warp", "install", "toolkit", "macos"]
+description: Install the Superwarp Toolkit from this repository, with optional extra flags.
+author: Lionel + Codex
+source_url: https://github.com/lioneltchami/superwarp-toolkit
+arguments:
+  - name: extra_flags
+    description: Optional flags such as --no-permission-panes, --install-gemini, or --install-ollama.
+    default_value: "--no-permission-panes"
