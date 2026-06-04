@@ -158,6 +158,35 @@ git pull origin main
 ./install.sh --no-permission-panes
 ```
 
+### Fresh machine verification
+
+After cloning + install, run:
+
+```bash
+source ~/.zshrc
+warpai-doctor
+```
+
+You should see at least:
+
+- `python3: ok`
+- `toolkit file: ok`
+
+Optional quick smoke validation:
+
+```bash
+./tests/smoke.sh
+```
+
+If you want a fast command surface check:
+
+```bash
+warpai-calc "2 + 2"
+warpai-codex "Summarize this session setup"
+```
+
+`warpai-codex` is optional; you can skip that line until you’ve installed/authorized Codex.
+
 ### What the installer does
 
 - installs the suite into `~/.warp-ai-enhancement`
