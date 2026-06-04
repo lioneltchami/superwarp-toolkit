@@ -1,0 +1,14 @@
+name: Codex Assistant
+command: >-
+  ROOT="$(git rev-parse --show-toplevel)" &&
+  export ROOT WARP_AI_ROOT="$ROOT" WARP_AI_TOOLKIT="$ROOT/scripts/warp-ai-toolkit.sh" &&
+  zsh -ic "source \"$WARP_AI_TOOLKIT\" >/dev/null; warp_ai_invoke_codex ask '{{prompt}}'"
+shells: ["zsh", "bash"]
+tags: ["warp", "ai", "codex", "planning", "risk-assessment"]
+description: Send a repo-aware question to Codex for coding guidance, planning, or triage.
+author: Lionel + Codex
+source_url: https://github.com/lioneltchami/superwarp-toolkit
+arguments:
+  - name: prompt
+    description: The question or task you want Codex to reason about.
+    default_value: "Summarize the next safest rollout steps for this repo."

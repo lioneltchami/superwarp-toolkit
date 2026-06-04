@@ -15,7 +15,12 @@ This repository is a macOS-only zsh helper layer for Warp Terminal.
 - `bash` for installer scripts
 - `python3` for calculator and plist parsing
 - `sqlite3` for read-only Warp usage history
-- Gemini CLI and Ollama are optional
+- Gemini CLI, Codex, and Ollama are optional
+
+For explicit Codex installation, you can set:
+- `WARP_AI_CODEX_INSTALL_COMMAND` (full shell command) or
+- `WARP_AI_CODEX_NPM_PACKAGE` (default npm package name)
+- `WARP_AI_CODEX_BIN` (explicit binary path when not on PATH)
 
 ## Core Commands
 
@@ -32,6 +37,7 @@ This repository is a macOS-only zsh helper layer for Warp Terminal.
 - `warpai-quick`
 - `warpai-layout-install`
 - `warpai-open`
+- `warpai-codex`
 
 ## Safety Rules
 

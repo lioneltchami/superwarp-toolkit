@@ -11,6 +11,7 @@ fi
 export WARP_AI_LOG_DIR="${WARP_AI_LOG_DIR:-$HOME/Library/Logs/WarpAI}"
 export WARP_AI_MAIN_LOG="$WARP_AI_LOG_DIR/Claude_Conversation_Log.txt"
 export WARP_AI_BACKUP_LOG="$WARP_AI_LOG_DIR/Claude_Conversation_Backup_$(date +%Y%m%d).txt"
+export WARP_AI_CODEX_BIN="${WARP_AI_CODEX_BIN:-codex}"
 export WARP_AI_WELCOME_STAMP_FILE="${WARP_AI_WELCOME_STAMP_FILE:-${TMPDIR:-/tmp}/warp-ai-last-welcome}"
 export WARP_AI_WELCOME_COOLDOWN="${WARP_AI_WELCOME_COOLDOWN:-90}"
 
@@ -110,6 +111,12 @@ warp_ai_doctor() {
     echo "ollama: ok"
   else
     echo "ollama: optional, not installed"
+  fi
+
+  if [[ -n "$(command -v "$WARP_AI_CODEX_BIN" 2>/dev/null)" ]]; then
+    echo "codex: ok"
+  else
+    echo "codex: optional, not installed"
   fi
 
   if [[ -n "$(command -v sqlite3 2>/dev/null)" ]]; then
@@ -737,6 +744,56 @@ PY
   fi
 }
 
+warp_ai_invoke_codex() {
+  local mode="${1:-ask}"
+  shift || true
+
+  if [[ "$mode" == "--help" || "$mode" == "-h" || "$mode" == "help" || "$mode" == "" ]]; then
+    cat <<'EOF'
+Usage: warp_ai_invoke_codex <prompt>
+Usage: warp_ai_invoke_codex ask "<prompt>"
+Usage: warp_ai_invoke_codex raw <codex-args...>
+
+Examples:
+  warpai-codex explain why this command keeps failing
+  warpai-codex raw --help
+EOF
+    return 0
+  fi
+
+  if [[ -z "$(command -v "$WARP_AI_CODEX_BIN" 2>/dev/null)" ]]; then
+    echo "⚠️ Codex CLI not found. Install and authenticate Codex first."
+    echo "   Set WARP_AI_CODEX_BIN if your executable is not on PATH and set up auth in your Codex CLI profile."
+    return 1
+  fi
+
+  local -a payload
+  if [[ "$mode" == "raw" ]]; then
+    if [[ $# -eq 0 ]]; then
+      echo "❌ Usage: warp_ai_invoke_codex raw <codex-args...>"
+      return 1
+    fi
+    payload=("$@")
+  elif [[ "$mode" == "ask" ]]; then
+    if [[ $# -eq 0 ]]; then
+      echo "❌ Usage: warp_ai_invoke_codex ask \"<prompt>\""
+      return 1
+    fi
+    payload=("$*")
+  else
+    payload=("$mode" "$@")
+  fi
+
+  warp_ai_log "TOOL" "Codex requested"
+  echo "⚙️ Running Codex with: ${payload[*]}"
+
+  if [[ "$mode" == "raw" || "$mode" == "ask" ]]; then
+    "$WARP_AI_CODEX_BIN" "${payload[@]}"
+  else
+    "$WARP_AI_CODEX_BIN" "$mode" "$@"
+  fi
+}
+
 warp_ai_invoke_image_analysis() {
   local image_path="$1"
   local prompt="${2:-Describe this image in detail}"
@@ -916,6 +973,7 @@ alias warpai-doctor='warp_ai_doctor'
 alias warpai-permissions='warp_ai_open_permission_panes'
 alias warpai-usage='warp_ai_usage'
 alias warpai-quick='warp_ai_quick_usage'
+alias warpai-codex='warp_ai_invoke_codex'
 alias warpai-layout-install='warp_ai_install_tab_configs'
 alias warpai-open='warp_ai_open'
 

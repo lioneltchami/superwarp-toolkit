@@ -2,7 +2,7 @@
 **A polished Warp terminal toolkit for macOS with install, uninstall, doctor, permissions, search, automation, and local AI helpers.**
 
 ![Status](https://img.shields.io/badge/Status-macOS%20Ready-brightgreen)
-![AI Collaboration](https://img.shields.io/badge/AI%20Collaboration-Claude%20%2B%20Gemini%20%2B%20Ollama-blue)
+![AI Collaboration](https://img.shields.io/badge/AI%20Collaboration-Claude%20%2B%20Gemini%20%2B%20Codex%20%2B%20Ollama-blue)
 ![Platform](https://img.shields.io/badge/Platform-macOS-lightgrey)
 ![Shell](https://img.shields.io/badge/Shell-zsh-black)
 ![License](https://img.shields.io/badge/License-MIT-success)
@@ -19,7 +19,7 @@ It gives you:
 - **🩺 Better trust** with `warpai-doctor` for runtime checks
 - **🧠 Useful terminal helpers** for calculation, search, image prompting, and Warp pane control
 - **📝 Lightweight session logging** and startup context
-- **🎛️ Optional AI integrations** through Gemini CLI and Ollama
+- **🎛️ Optional AI integrations** through Gemini CLI, Codex CLI, and Ollama
 
 This branch is intentionally **smaller and cleaner** than the old Windows-heavy version. It is not trying to be an everything-platform. It is trying to be a solid macOS Warp toolkit that you can actually install, validate, and use.
 
@@ -65,6 +65,9 @@ This branch is intentionally **smaller and cleaner** than the old Windows-heavy 
 - **`warpai-open`**
   Opens the bundled Superwarp Tab Configs or the macOS permission panes.
 
+- **`warpai-codex`**
+  Sends prompts to your local Codex CLI for faster triage, planning, and repo-aware suggestions.
+
 ## 🛠️ What’s Included
 
 Core files:
@@ -90,6 +93,7 @@ Core commands:
 - `warpai-quick`
 - `warpai-layout-install`
 - `warpai-open`
+- `warpai-codex`
 
 Warp-native repo assets:
 
@@ -97,6 +101,7 @@ Warp-native repo assets:
 - `.agents/skills/tab-config-installer`
 - `.agents/skills/warp-permission-doctor`
 - `.agents/skills/usage-session-analyst`
+- `.agents/skills/codex-command-assistant`
 - `.warp/workflows/suite-health-check.yaml`
 - `.warp/workflows/permission-readiness-check.yaml`
 - `.warp/workflows/usage-snapshot.yaml`
@@ -104,6 +109,7 @@ Warp-native repo assets:
 - `.warp/workflows/install-uninstall-validation.yaml`
 - `.warp/workflows/install-tab-configs.yaml`
 - `.warp/workflows/bootstrap-superwarp.yaml`
+- `.warp/workflows/codex-assistant.yaml`
 
 ## 🍏 Requirements
 
@@ -121,6 +127,7 @@ Optional companion tools:
 
 - **Gemini CLI** for better search and web-grounded responses
 - **Ollama** for local image analysis and multimodal workflows
+- **Codex CLI** for repo-aware agent-style breakdowns and coding suggestions
 
 ## 🚀 Installation
 
@@ -129,6 +136,26 @@ git clone https://github.com/lioneltchami/superwarp-toolkit.git
 cd superwarp-toolkit
 chmod +x ./install.sh
 ./install.sh
+```
+
+### Use on another Mac
+
+On another machine, run:
+
+```bash
+git clone https://github.com/lioneltchami/superwarp-toolkit.git
+cd superwarp-toolkit
+git checkout main
+chmod +x ./install.sh
+./install.sh
+```
+
+To sync future updates later:
+
+```bash
+cd superwarp-toolkit
+git pull origin main
+./install.sh --no-permission-panes
 ```
 
 ### What the installer does
@@ -147,8 +174,25 @@ chmod +x ./install.sh
 ./install.sh --no-permission-panes
 ./install.sh --install-gemini
 ./install.sh --install-ollama
+./install.sh --install-codex
 ./install.sh --install-gemini --install-ollama
+./install.sh --install-codex --no-permission-panes
 ./install.sh --help
+```
+
+### `--install-codex` setup example
+
+Codex is optional and intentionally explicit. Choose one of these installer options before running `--install-codex`:
+
+```bash
+export WARP_AI_CODEX_INSTALL_COMMAND="npm install -g @openai/codex"
+# Or:
+export WARP_AI_CODEX_NPM_PACKAGE="@openai/codex"
+
+# Optional: if codex is not on PATH, set the explicit executable path:
+export WARP_AI_CODEX_BIN="/full/path/to/codex"
+
+./install.sh --install-codex
 ```
 
 ## 🧪 Quick Start
@@ -167,6 +211,7 @@ warpai-permissions
 warpai-layout-install
 warpai-open toolkit
 warpai-open doctor
+warpai-codex "Summarize the next safe rollout steps for this repo"
 ```
 
 ## 🧠 Startup Experience
@@ -208,6 +253,7 @@ if you want to reopen those panes later.
 - Warp Tab Configs are a better fit for repeatable workspace layouts than simulated keystrokes.
 - Gemini-free search falls back to DuckDuckGo Instant Answer and may return sparse summaries.
 - Image analysis depends on a locally installed Ollama multimodal model.
+- Codex commands depend on your local Codex auth/session and network access.
 
 ## 🚀 Tab Configs
 
@@ -273,6 +319,9 @@ That means this project is not only a set of commands you install into your shel
 - **`tab-config-installer`**
   Installs or opens the bundled Superwarp Tab Configs for a native Warp session layout.
 
+- **`codex-command-assistant`**
+  Suggests repo-aware coding strategies, risk checks, and decomposition steps via Codex.
+
 ### Included workflows
 
 - **`Suite Health Check`**
@@ -296,6 +345,9 @@ That means this project is not only a set of commands you install into your shel
 - **`Bootstrap Superwarp`**
   Installs Tab Configs, runs the doctor, and prints the current quick usage snapshot in one shot.
 
+- **`Codex Assistant`**
+  Sends a structured prompt to `warpai-codex` for local rollout guidance and triage.
+
 In practice, this is the beginning of the "superwarp" idea: Warp-native skills for agent behavior, Warp-native workflows for repeatable actions, and shell helpers for the actual local execution surface.
 
 ## ⚠️ Limitations
@@ -303,7 +355,9 @@ In practice, this is the beginning of the "superwarp" idea: Warp-native skills f
 - `zsh` is the supported startup shell path.
 - GUI automation depends on a live Warp window and granted macOS permissions.
 - `--install-gemini` and `--install-ollama` make real system-wide dependency changes.
+- `--install-codex` is optional and requires an explicit install command or npm package export.
 - This repo does **not** directly hook into Warp’s internal agent runtime or automatically capture Warp AI prompts and responses.
+- `warpai-codex` needs an authenticated Codex session and valid CLI credentials.
 
 ## 🧭 Rename Notes (2026-06-04)
 
@@ -317,8 +371,6 @@ For users from older local checkouts:
 - Existing installations continue to work.
 - If you want the local checkout to reflect the new name, clone or `cd` from the new folder path shown in the instructions below.
 - Remote is now: `https://github.com/lioneltchami/superwarp-toolkit`
-
-If you want, we can do one optional cleanup pass to migrate remaining shell/config references from older local paths.
 
 ## ✅ Validation Status
 
@@ -355,6 +407,7 @@ Logs are intentionally left behind at `~/Library/Logs/WarpAI` unless you remove 
 - **Public maintenance workflow** with a release checklist and GitHub Actions smoke job
 - **Cleaner upgrade flow** for existing installs when installer behavior changes
 - **More first-run guidance** for people setting up Gemini CLI and Ollama on a fresh Mac
+- **Codex workflow presets** for command safety checks, execution planning, and staged rollback guidance
 
 For repo-local agent guidance, see [WARP.md](./WARP.md).
 

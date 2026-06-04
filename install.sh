@@ -11,15 +11,18 @@ LOADER_PATH="$INSTALL_DIR/warp-ai-enhancement-profile.zsh"
 DO_PERMISSION_PANES=1
 INSTALL_GEMINI=0
 INSTALL_OLLAMA=0
+INSTALL_CODEX=0
 
 log() {
   printf "[warp-ai] %s\n" "$*"
 }
 
 show_help() {
-  log "Usage: ./install.sh [--no-shell-hook] [--no-permission-panes] [--install-gemini] [--install-ollama]"
+  log "Usage: ./install.sh [--no-shell-hook] [--no-permission-panes] [--install-gemini] [--install-ollama] [--install-codex]"
   log "  --install-gemini       Install Gemini CLI"
   log "  --install-ollama       Install Ollama"
+  log "  --install-codex        Install Codex CLI (optional; requires codex package/source config)"
+  log "  --install-codex uses WARP_AI_CODEX_INSTALL_COMMAND and/or WARP_AI_CODEX_NPM_PACKAGE."
   log "  --no-permission-panes   Do not open macOS Privacy & Security panes"
   log "  --no-shell-hook   Install files only, do not modify ~/.zshrc"
   log "  --help            Show this help"
@@ -115,6 +118,47 @@ install_gemini_cli() {
   fi
 }
 
+install_codex_cli() {
+  local codex_binary
+  codex_binary="${WARP_AI_CODEX_BIN:-codex}"
+
+  if command_exists "$codex_binary"; then
+    log "Codex CLI already available."
+    return 0
+  fi
+
+  if [[ -n "${WARP_AI_CODEX_INSTALL_COMMAND:-}" ]]; then
+    log "Installing Codex CLI via WARP_AI_CODEX_INSTALL_COMMAND..."
+    if ! sh -c "$WARP_AI_CODEX_INSTALL_COMMAND"; then
+      log "Codex CLI custom install command failed."
+      exit 1
+    fi
+  elif [[ -n "${WARP_AI_CODEX_NPM_PACKAGE:-}" ]]; then
+    ensure_node
+    log "Installing Codex CLI from npm package ${WARP_AI_CODEX_NPM_PACKAGE}..."
+    if ! npm install -g "$WARP_AI_CODEX_NPM_PACKAGE"; then
+      log "Codex CLI npm install failed."
+      exit 1
+    fi
+  else
+    log "Codex CLI is not installed, and no install command was configured."
+    log "Use one of the following before running --install-codex:"
+    log "  export WARP_AI_CODEX_INSTALL_COMMAND=\"<your command>\""
+    log "  export WARP_AI_CODEX_NPM_PACKAGE=\"<npm package name>\""
+    log "Examples:"
+    log "  export WARP_AI_CODEX_NPM_PACKAGE=\"@openai/codex\""
+    log "  # or export WARP_AI_CODEX_INSTALL_COMMAND=\"npm install -g @openai/codex\""
+    return 1
+  fi
+
+  if ! command_exists "$codex_binary"; then
+    log "Codex installation did not complete successfully."
+    exit 1
+  fi
+
+  log "Codex CLI installation completed."
+}
+
 install_ollama() {
   if command_exists ollama && [[ -d /Applications/Ollama.app ]]; then
     log "Ollama already available."
@@ -162,6 +206,9 @@ while [[ $# -gt 0 ]]; do
     --install-ollama)
       INSTALL_OLLAMA=1
       ;;
+    --install-codex)
+      INSTALL_CODEX=1
+      ;;
     --help|-h)
       show_help
       exit 0
@@ -193,6 +240,10 @@ fi
 
 if [[ $INSTALL_OLLAMA -eq 1 ]]; then
   install_ollama
+fi
+
+if [[ $INSTALL_CODEX -eq 1 ]]; then
+  install_codex_cli
 fi
 
 mkdir -p "$INSTALL_DIR/scripts"

@@ -64,8 +64,44 @@ test_help_includes_new_flags() {
   assert_contains "$output" "--install-gemini"
   assert_contains "$output" "--install-ollama"
   assert_contains "$output" "--no-permission-panes"
+  assert_contains "$output" "WARP_AI_CODEX_INSTALL_COMMAND"
+  assert_contains "$output" "--install-codex"
 }
 
+
+test_install_codex_with_command() {
+  local home_dir codex_path custom_install_cmd
+  home_dir="$(mktemp -d)"
+  codex_path="$home_dir/.local/bin/codex"
+  custom_install_cmd="mkdir -p '$home_dir/.local/bin'; printf '#!/usr/bin/env sh\\nprintf codex-installed\\n' > '$codex_path'; chmod +x '$codex_path'"
+
+  HOME="$home_dir" \
+    WARP_AI_CODEX_INSTALL_COMMAND="$custom_install_cmd" \
+    WARP_AI_CODEX_BIN="$codex_path" \
+    "$ROOT_DIR/install.sh" --install-codex --no-permission-panes >/dev/null
+
+  [[ -x "$codex_path" ]] || fail "custom codex install command did not create executable"
+  [[ "$($codex_path)" == "codex-installed" ]] || fail "custom codex install command produced unexpected output"
+}
+
+test_install_codex_missing_config_fails() {
+  local home_dir custom_codex_path output exit_code
+  home_dir="$(mktemp -d)"
+  custom_codex_path="$home_dir/.local/bin/missing-codex"
+
+  set +e
+  output="$(HOME="$home_dir" WARP_AI_CODEX_BIN="$custom_codex_path" "$ROOT_DIR/install.sh" --install-codex --no-permission-panes 2>&1)"
+  exit_code=$?
+  set -e
+
+  if [[ $exit_code -eq 0 ]]; then
+    fail "--install-codex without configuration unexpectedly succeeded"
+  fi
+
+  assert_contains "$output" "Codex CLI is not installed, and no install command was configured."
+  assert_contains "$output" "WARP_AI_CODEX_INSTALL_COMMAND"
+  assert_contains "$output" "WARP_AI_CODEX_NPM_PACKAGE"
+}
 test_uninstall_removes_install_dir() {
   local home_dir
   home_dir="$(mktemp -d)"
@@ -84,6 +120,7 @@ test_repo_native_assets_exist() {
     "$ROOT_DIR/.agents/skills/tab-config-installer/SKILL.md"
     "$ROOT_DIR/.agents/skills/warp-permission-doctor/SKILL.md"
     "$ROOT_DIR/.agents/skills/usage-session-analyst/SKILL.md"
+    "$ROOT_DIR/.agents/skills/codex-command-assistant/SKILL.md"
     "$ROOT_DIR/.warp/workflows/bootstrap-superwarp.yaml"
     "$ROOT_DIR/.warp/workflows/install-tab-configs.yaml"
     "$ROOT_DIR/.warp/workflows/suite-health-check.yaml"
@@ -91,6 +128,7 @@ test_repo_native_assets_exist() {
     "$ROOT_DIR/.warp/workflows/usage-snapshot.yaml"
     "$ROOT_DIR/.warp/workflows/install-suite-safely.yaml"
     "$ROOT_DIR/.warp/workflows/install-uninstall-validation.yaml"
+    "$ROOT_DIR/.warp/workflows/codex-assistant.yaml"
   )
 
   local path
@@ -173,6 +211,42 @@ test_tab_config_preview_detection() {
   output="$(HOME="$home_dir" WARP_AI_OPEN_URL_ONLY=1 TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-open toolkit; warpai-open doctor' 2>&1)"
   assert_contains "$output" "warppreview://tab_config/superwarp_toolkit"
   assert_contains "$output" "warppreview://tab_config/superwarp_doctor"
+}
+
+test_codex_command_integration() {
+  local home_dir fake_bin missing_bin
+  local working_output missing_output
+  local cmd_script
+
+  home_dir="$(mktemp -d)"
+  fake_bin="$home_dir/bin/codex"
+  cmd_script="$home_dir/run-codex-command.zsh"
+  mkdir -p "$home_dir/bin"
+
+  cat > "$fake_bin" <<'EOF'
+#!/usr/bin/env sh
+printf 'codex-hit: %s\n' "$*"
+EOF
+  chmod +x "$fake_bin"
+
+  cat > "$cmd_script" <<EOF
+source "$ROOT_DIR/scripts/warp-ai-toolkit.sh"
+warp_ai_invoke_codex ask 'please draft a safe rollout'
+EOF
+
+  working_output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal WARP_AI_CODEX_BIN="$fake_bin" zsh "$cmd_script" 2>&1)"
+  assert_contains "$working_output" "⚙️ Running Codex with: please draft a safe rollout"
+  assert_contains "$working_output" "codex-hit: please draft a safe rollout"
+
+  missing_bin="$home_dir/missing-codex"
+  cat > "$cmd_script" <<EOF
+source "$ROOT_DIR/scripts/warp-ai-toolkit.sh"
+warp_ai_invoke_codex ask 'this should fail'
+EOF
+
+  missing_output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal WARP_AI_CODEX_BIN="$missing_bin" zsh "$cmd_script" 2>&1 || true)"
+  assert_contains "$missing_output" "Codex CLI not found"
+  assert_contains "$missing_output" "Install and authenticate Codex first"
 }
 
 create_usage_fixtures() {
@@ -348,12 +422,15 @@ test_custom_install_dir
 test_unknown_flag_rejected
 test_unrelated_zshrc_comment_does_not_block_install
 test_help_includes_new_flags
+test_install_codex_with_command
+test_install_codex_missing_config_fails
 test_uninstall_removes_install_dir
 test_repo_native_assets_exist
 test_warp_asset_contracts
 test_repo_doctor_uses_repo_toolkit_path
 test_tab_config_install
 test_tab_config_preview_detection
+test_codex_command_integration
 test_usage_helpers_with_fixtures
 test_usage_helpers_handle_missing_data
 test_usage_helpers_handle_unsupported_sqlite_schema
