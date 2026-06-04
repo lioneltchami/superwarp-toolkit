@@ -1,0 +1,40 @@
+name: Superwarp Toolkit CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  macos-ci:
+    name: macOS Smoke + Scripts
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: brew install shellcheck
+
+      - name: Syntax and policy checks
+        run: |
+          shellcheck install.sh uninstall.sh tests/smoke.sh scripts/warp-ai-toolkit.sh tests/live-gui-validation.zsh
+          bash -n install.sh
+          bash -n uninstall.sh
+          bash -n tests/smoke.sh
+          zsh -n scripts/warp-ai-toolkit.sh
+          zsh -n warp-ai-enhancement-profile.zsh
+          zsh -n tests/live-gui-validation.zsh
+
+      - name: Run install (no GUI permission prompts)
+        run: |
+          chmod +x ./install.sh
+          ./install.sh --no-permission-panes
+
+      - name: Run smoke tests
+        run: |
+          chmod +x ./tests/smoke.sh
+          ./tests/smoke.sh
+

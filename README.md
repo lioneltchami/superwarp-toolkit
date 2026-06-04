@@ -6,6 +6,7 @@
 ![Platform](https://img.shields.io/badge/Platform-macOS-lightgrey)
 ![Shell](https://img.shields.io/badge/Shell-zsh-black)
 ![License](https://img.shields.io/badge/License-MIT-success)
+![CI](https://github.com/lioneltchami/superwarp-toolkit/actions/workflows/ci.yml/badge.svg)
 
 > **macOS-first refresh:** this repo keeps the best parts of the original Warp AI idea, but reshapes them into a tighter, cleaner, more honest toolkit for real macOS Warp workflows.
 
@@ -177,6 +178,16 @@ Optional quick smoke validation:
 ```bash
 ./tests/smoke.sh
 ```
+
+### GitHub Actions validation
+
+This repo runs GitHub Actions on every push and PR to `main`:
+
+- syntax and shell checks
+- install smoke path (`./install.sh --no-permission-panes`)
+- full suite smoke tests (`./tests/smoke.sh`)
+
+It helps keep the toolkit safe to clone on a fresh Mac and quickly update via git.
 
 If you want a fast command surface check:
 
