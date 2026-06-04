@@ -1,201 +1,147 @@
-# 🚀 Warp AI Enhancement Suite v2.0
-**The Future of AI-Powered Development Environments**
+# Warp AI Enhancement Suite (macOS)
 
-![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
-![AI Collaboration](https://img.shields.io/badge/AI%20Collaboration-Live-blue)
-![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
+A focused macOS toolkit for Warp terminal that adds:
 
-> **BREAKTHROUGH UPDATE**: Our AI-to-AI collaboration has achieved **live intelligent terminal integration**! The PowerShell Profile v2.0 now provides seamless context awareness and multi-AI capabilities directly within Warp.
+- lightweight startup context
+- safe calculation and quick web lookup helpers
+- optional local image analysis with Ollama
+- Warp pane and screenshot automation
+- install, uninstall, doctor, and permission helper workflows
 
-## 🎯 What This Is
+This branch is intentionally narrower than the original Windows-heavy project. It is now a clean macOS-first Warp helper suite rather than a broad multi-platform automation experiment.
 
-This repository demonstrates **live AI-to-AI collaboration** between Claude, Gemini CLI, and Ollama to create a sophisticated, production-ready enhancement suite for Warp terminal. What started as an experiment has become a **fully functional intelligent development environment**.
+## Features
 
-## 🎉 Latest Achievement: PowerShell Profile v2.0
+- `install.sh`
+Installs the suite into `~/.warp-ai-enhancement` and wires it into `~/.zshrc`.
 
-**Professional PowerShell Profile** that automatically provides intelligent context on startup:
+- `uninstall.sh`
+Removes the managed loader block and installed suite files.
 
-```powershell
-👋 Welcome back! How's it going this morning?
-════════════════════════════════════════════════════════════
-🎯 Based on recent activity, you were working on:
+- `warpai-doctor`
+Checks shell loading, binary availability, and likely GUI-permission readiness.
 
-   📊 Data Analysis Project
-      └─ Processing customer analytics with Python
-      🎯 Next: Complete visualization dashboard
-   🌐 Web Development
-      └─ Building React components for new features
-      🎯 Next: Implement API integration
-   🤖 AI Integration
-      └─ Testing machine learning models
-      🎯 Next: Deploy to production environment
-   📝 Documentation
-      └─ Writing technical specifications
-      🎯 Next: Review and publish documentation
+- `warpai-permissions`
+Reopens the relevant macOS Privacy & Security panes for `Accessibility`, `Automation`, and `Screen Recording`.
 
-💡 Ready to continue where you left off?
-🎉 ENHANCED TERMINAL READY! What would you like to build today?
+- `warpai-search`
+Uses Gemini CLI when available, with a DuckDuckGo fallback when it is not.
+
+- `warpai-calc`
+Evaluates numeric expressions with a restricted AST-based calculator.
+
+- `warpai-image`
+Runs a local Ollama multimodal model against an image prompt.
+
+- `warpai-cmd`
+Supports `split right`, `split down`, `close panel`, and `screenshot`.
+
+## Requirements
+
+- macOS
+- `zsh`
+- `bash`
+
+Installed automatically if missing:
+
+- `python3`
+
+Optional companion tools:
+
+- Gemini CLI
+- Ollama
+
+## Install
+
+```bash
+cd /path/to/warp-ai-enhancement-suite
+chmod +x ./install.sh
+./install.sh
 ```
 
-### 🏆 Key Features of Profile v2.0:
+The installer:
 
-- **🧠 Intelligent Context Analysis** - Automatically detects recent projects from logs
-- **🤖 Multi-AI Integration** - Claude + Gemini CLI + Ollama seamlessly accessible
-- **📝 Conversation Logging** - Dual backup system with crash recovery  
-- **🎛️ Natural Language Commands** - "Create split panel right" just works
-- **⚡ Performance Optimized** - Fast loading with metrics tracking
-- **🛡️ Error Handling** - Professional architecture with graceful degradation
+- installs the suite into `~/.warp-ai-enhancement`
+- appends a managed loader block to `~/.zshrc`
+- installs `python3` automatically if needed
+- uses Homebrew for `python3`, and bootstraps Homebrew first if necessary
+- can optionally install Gemini CLI and Ollama
+- opens the relevant macOS Privacy & Security panes during interactive installs
 
-## 🚀 One-Click Installation
+Installer options:
 
-### Option 1: PowerShell Profile (Recommended)
-```powershell
-# Copy the professional profile to your PowerShell directory
-Copy-Item "WarpAI-Professional-Profile.ps1" -Destination $PROFILE
-# Reload your profile
-. $PROFILE
+```bash
+./install.sh --no-shell-hook
+./install.sh --no-permission-panes
+./install.sh --install-gemini
+./install.sh --install-ollama
+./install.sh --install-gemini --install-ollama
+./install.sh --help
 ```
 
-### Option 2: Full Suite Installation
-```powershell
-# Download and run the installer
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/hlsitechio/warp-ai-enhancement-suite/main/install.ps1'))
+## Usage
+
+```bash
+warpai-search "latest AI developments"
+warpai-calc "1024 * 768 / 2"
+warpai-image /absolute/path/to/image.png "Describe this image"
+warpai-cmd split right
+warpai-cmd split down
+warpai-cmd close panel
+warpai-cmd screenshot
+warpai-cmd screenshot /tmp/warp-shot.png
+warpai-doctor
+warpai-permissions
 ```
 
-## 🎯 Live Demonstration
+## macOS permissions
 
-Here's what happens when you open a new Warp session with our enhancement suite:
+For `warpai-cmd`, macOS may require:
 
-1. **Automatic Context Loading** - System analyzes your recent work
-2. **Intelligent Welcome** - Time-aware greeting with project status
-3. **Smart Suggestions** - Next steps based on your activity patterns
-4. **Multi-AI Tools** - Instant access to web search, image analysis, automation
-5. **Conversation Logging** - Everything saved for crash recovery
+- `Accessibility`
+- `Automation`
+- `Screen Recording`
 
-**This is AI-to-AI collaboration creating real value for developers.**
+The installer can open the correct panes, but macOS still requires user approval for those permissions.
 
-## 🛠️ Core Components
+## Behavior notes
 
-### 🤖 Claude Desktop Integration (NEW!)
-Breakthrough AI-to-AI communication system enabling direct coordination between Warp AI Claude and Claude Desktop:
-- **Direct AI Communication**: Real-time message exchange between AI systems
-- **MCP Integration**: Uses Claude Desktop's Powershell-Tool for system interaction  
-- **Secret Coordination**: Multi-phase operations with operational security
-- **Program Execution**: AI systems can coordinate to launch programs
-- **Zero Chat Pollution**: All communication via log files, no chat interference
+- The startup welcome appears in Warp by default.
+- Set `WARP_AI_ALWAYS_SHOW_WELCOME=1` to show it in other interactive shells too.
+- The welcome is rate-limited so quick pane or tab creation should not flood the terminal.
+- `warpai-cmd` assumes current default Warp macOS pane shortcuts.
+- If you remap Warp shortcuts, pane automation may stop matching your setup.
+- Warp-native Launch Configurations are still better for stable repeatable workspace layouts than simulated keystrokes.
 
-### 🧠 Intelligent Session Management
-- **Context Recovery**: Analyzes logs and memory to reconstruct work state
-- **Project Detection**: Automatically identifies active projects and next steps
-- **Session Continuity**: Preserves context across crashes and reboots
+## Limitations
 
-### 🤖 Multi-AI Integration Layer
-```powershell
-# Web search via Gemini CLI
-Invoke-IntelligentSearch "latest AI developments"
+- `zsh` is the supported startup shell path.
+- Gemini-free search falls back to DuckDuckGo Instant Answer and may be sparse.
+- Image analysis depends on a locally installed Ollama multimodal model.
+- GUI automation depends on a live Warp window and granted macOS permissions.
+- `--install-gemini` and `--install-ollama` make real system-wide dependency changes.
 
-# Image analysis via Ollama Llama Vision  
-Invoke-ImageAnalysis "screenshot.png"
+## Uninstall
 
-# Smart calculations
-Invoke-SmartCalculation "1024 * 768 / 2"
-
-# Warp automation
-Invoke-WarpCommand "create split panel right"
+```bash
+./uninstall.sh
 ```
 
-### 📊 Performance Metrics
-- **Load Time**: ~50ms average profile initialization
-- **Context Analysis**: ~200ms for full log parsing  
-- **AI Response**: ~2-3s for tool integration
-- **Memory Usage**: <10MB total enhancement footprint
+That removes:
 
-## 🏗️ Technical Architecture
+- the managed loader block from `~/.zshrc`
+- the installed suite in `~/.warp-ai-enhancement`
 
-### Professional Design Principles
-- **Clean Separation**: Each AI tool is independently accessible
-- **Error Recovery**: Graceful degradation when tools are unavailable
-- **Performance First**: Optimized loading and caching strategies
-- **User Experience**: Intuitive commands with helpful suggestions
+Logs are intentionally left in place at `~/Library/Logs/WarpAI` unless you remove them manually.
 
-### Multi-AI Coordination
-```mermaid
-graph TD
-    A[Warp Terminal] --> B[PowerShell Profile v2.0]
-    B --> C[Claude Integration]
-    B --> D[Gemini CLI Tools]
-    B --> E[Ollama Vision]
-    B --> F[Context Analysis]
-    B --> L[Claude Desktop Integration]
-    F --> G[Log Files]
-    F --> H[MCP Memory]
-    C --> I[Natural Language Processing]
-    D --> J[Web Search & Tools]
-    E --> K[Image Analysis]
-    L --> M[Claude Desktop MCP]
-    L --> N[AI-to-AI Communication]
-    L --> O[Secret Coordination]
-```
+## Future improvements
 
-## 📈 Success Metrics
+- Improve first-run `warpai-cmd` diagnostics with more specific permission failure guidance.
+- Add a small `warpai-layout` helper built around Warp-native Launch Configurations.
+- Add optional model bootstrap helpers for recommended Ollama vision models.
+- Add a small release checklist and GitHub Actions smoke job for public maintenance.
+- Add a cleaner upgrade flow for existing installs when installer behavior changes.
 
-### Measurable Improvements
-- **Context Recovery**: 100% success rate across system crashes
-- **Startup Time**: 20x faster than manual context reconstruction
-- **User Productivity**: Seamless project continuation
-- **AI Collaboration**: Live demonstration of multi-model coordination
+## License
 
-### Community Impact
-- **GitHub Stars**: Growing developer interest
-- **Issue Engagement**: Active collaboration with Warp team
-- **Technical Innovation**: Pioneering AI-to-AI development workflows
-
-## 🎯 For Warp Team Collaboration
-
-We've created [Issue #6911](https://github.com/warpdotdev/Warp/issues/6911) to explore official integration opportunities:
-
-- **Context Preservation**: Our crash recovery system could benefit all users
-- **Multi-AI Coordination**: Framework for integrating multiple AI models
-- **Natural Language Commands**: Enhanced user experience for terminal automation
-- **Community Contributions**: Ready-to-integrate PowerShell modules
-
-## 🔮 Future Roadmap
-
-### Immediate Goals
-- [ ] Auto-loading profile configuration for seamless setup
-- [ ] Cross-platform support (macOS, Linux) 
-- [ ] Additional AI model integrations
-- [ ] Enhanced natural language command processing
-
-### Long-term Vision  
-- [ ] Official Warp integration as MCP server
-- [ ] Community marketplace for AI enhancements
-- [ ] Enterprise features for team collaboration
-- [ ] Visual interface for non-technical users
-
-## 🤝 Contributing
-
-This project demonstrates what's possible when AI agents collaborate to solve real problems. We welcome:
-
-- **Bug Reports**: Help us improve the enhancement suite
-- **Feature Requests**: What would make your terminal more intelligent?
-- **Code Contributions**: Add new AI integrations or improvements
-- **Documentation**: Help others understand and adopt these tools
-
-## 📜 License
-
-MIT License - Feel free to use, modify, and distribute.
-
-## 🙏 Acknowledgments
-
-**Created through AI-to-AI Collaboration:**
-- **Claude (Anthropic)**: Primary development and architecture
-- **Gemini CLI**: Web search and real-time data capabilities  
-- **Ollama**: Local AI models and image analysis
-- **Warp Team**: Excellent terminal platform enabling this innovation
-
----
-
-**⭐ Star this repository if our AI collaboration impressed you!**
-
-*This is just the beginning of what AI agents can build together.* 🚀
+MIT. See [LICENSE](./LICENSE).
