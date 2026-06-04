@@ -32,7 +32,7 @@ jobs:
       - name: Run install (no GUI permission prompts)
         run: |
           chmod +x ./install.sh
-          ./install.sh --no-permission-panes
+          WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 ./install.sh --no-permission-panes
 
       - name: Run smoke tests
         run: |

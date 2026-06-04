@@ -146,6 +146,7 @@ show_help() {
   log "  --accept-defaults      Install all optional components without prompting"
   log "  WARP_AI_INSTALL_DEFAULTS_FILE  path to a per-repo defaults file (default: ./.superwarp-toolkit.env)"
   log "  WARP_AI_ACCEPT_DEFAULTS can also be set to 1/true/yes/on/enabled to auto-install defaults."
+  log "  WARP_AI_OLLAMA_NO_START can be set to 1/true/yes/on/enabled to skip Ollama GUI startup."
   log "  --no-permission-panes   Do not open macOS Privacy & Security panes"
   log "  --no-shell-hook   Install files only, do not modify ~/.zshrc"
   log "  --help            Show this help"
@@ -325,6 +326,21 @@ install_ollama() {
   fi
 
   log "Installing Ollama with the official installer..."
+  if [[ -z "${WARP_AI_OLLAMA_NO_START:-}" ]]; then
+    if [[ "${CI:-false}" == "true" || "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+      WARP_AI_OLLAMA_NO_START=1
+    fi
+  fi
+
+  normalized_ollama_no_start="$(printf '%s' "${WARP_AI_OLLAMA_NO_START:-0}" | tr '[:upper:]' '[:lower:]')"
+  case "$normalized_ollama_no_start" in
+    1|true|yes|on|enabled)
+      export OLLAMA_NO_START=1
+      ;;
+    *)
+      unset OLLAMA_NO_START
+      ;;
+  esac
   curl -fsSL https://ollama.com/install.sh | sh
   if ! command_exists ollama; then
     log "Ollama installation did not complete successfully."
