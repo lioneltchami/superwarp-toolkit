@@ -20,7 +20,8 @@ jobs:
 
       - name: Syntax and policy checks
         run: |
-          shellcheck install.sh uninstall.sh tests/smoke.sh scripts/warp-ai-toolkit.sh tests/live-gui-validation.zsh
+          # ShellCheck supports sh/bash/dash/ksh; keep zsh files on zsh -n only.
+          shellcheck -s bash install.sh uninstall.sh tests/smoke.sh
           bash -n install.sh
           bash -n uninstall.sh
           bash -n tests/smoke.sh
@@ -37,4 +38,3 @@ jobs:
         run: |
           chmod +x ./tests/smoke.sh
           ./tests/smoke.sh
-
