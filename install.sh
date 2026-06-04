@@ -342,10 +342,29 @@ install_ollama() {
       ;;
   esac
   curl -fsSL https://ollama.com/install.sh | sh
-  if ! command_exists ollama; then
-    log "Ollama installation did not complete successfully."
-    exit 1
+  if command_exists ollama; then
+    return 0
   fi
+
+  if [[ -x /Applications/Ollama.app/Contents/Resources/ollama ]]; then
+    if [[ ! -x /usr/local/bin/ollama ]]; then
+      local fallback_bin="$HOME/.local/bin/ollama"
+      local fallback_bin_dir
+      fallback_bin_dir="$(dirname "$fallback_bin")"
+      mkdir -p "$fallback_bin_dir"
+      ln -sf /Applications/Ollama.app/Contents/Resources/ollama "$fallback_bin"
+      if [[ -x "$fallback_bin" ]]; then
+        if [[ ":$PATH:" != *":$fallback_bin_dir:"* ]]; then
+          PATH="$fallback_bin_dir:$PATH"
+        fi
+        log "Created fallback Ollama binary at $fallback_bin. PATH updates may require a new shell session."
+        return 0
+      fi
+    fi
+  fi
+
+  log "Ollama installation did not complete successfully."
+  exit 1
 }
 
 open_permission_panes() {

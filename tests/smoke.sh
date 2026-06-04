@@ -14,10 +14,16 @@ assert_contains() {
   [[ "$haystack" == *"$needle"* ]] || fail "expected output to contain: $needle"
 }
 
+run_smoke_install() {
+  local home_dir="$1"
+  shift
+  HOME="$home_dir" WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 "$ROOT_DIR/install.sh" "$@"
+}
+
 test_default_install() {
   local home_dir
   home_dir="$(mktemp -d)"
-  HOME="$home_dir" "$ROOT_DIR/install.sh" >/dev/null
+  run_smoke_install "$home_dir" >/dev/null
 
   [[ -f "$home_dir/.zshrc" ]] || fail "default install did not create ~/.zshrc"
   grep -Fq 'WARP AI ENHANCEMENT SUITE BEGIN' "$home_dir/.zshrc" || fail "managed zshrc block missing"
@@ -33,7 +39,7 @@ test_custom_install_dir() {
   home_dir="$(mktemp -d)"
   custom_dir="$home_dir/custom-suite"
 
-  HOME="$home_dir" WARP_AI_ENHANCEMENT_DIR="$custom_dir" "$ROOT_DIR/install.sh" >/dev/null
+  HOME="$home_dir" WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 WARP_AI_ENHANCEMENT_DIR="$custom_dir" "$ROOT_DIR/install.sh" >/dev/null
   [[ -f "$custom_dir/warp-ai-enhancement-profile.zsh" ]] || fail "custom install profile missing"
 
   output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; echo ROOT=${WARP_AI_ROOT}; echo READY=${WARP_AI_READY:-0}' 2>&1)"
@@ -44,7 +50,7 @@ test_custom_install_dir() {
 test_unknown_flag_rejected() {
   local home_dir
   home_dir="$(mktemp -d)"
-  if HOME="$home_dir" "$ROOT_DIR/install.sh" --bogus >/dev/null 2>&1; then
+  if HOME="$home_dir" WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 "$ROOT_DIR/install.sh" --bogus >/dev/null 2>&1; then
     fail "unknown install flag unexpectedly succeeded"
   fi
 }
@@ -54,7 +60,7 @@ test_unrelated_zshrc_comment_does_not_block_install() {
   home_dir="$(mktemp -d)"
   printf '# notes: WARP AI ENHANCEMENT SUITE\n' > "$home_dir/.zshrc"
 
-  HOME="$home_dir" "$ROOT_DIR/install.sh" >/dev/null
+  run_smoke_install "$home_dir" >/dev/null
   grep -Fq 'WARP AI ENHANCEMENT SUITE BEGIN' "$home_dir/.zshrc" || fail "managed block was not appended after unrelated comment"
 }
 
@@ -93,6 +99,7 @@ EOF
   HOME="$home_dir" \
     WARP_AI_CODEX_INSTALL_COMMAND="$custom_install_cmd" \
     WARP_AI_CODEX_BIN="$codex_path" \
+    WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 \
     "$ROOT_DIR/install.sh" --install-codex --no-permission-panes >/dev/null
 
   [[ -x "$codex_path" ]] || fail "custom codex install command did not create executable"
@@ -105,7 +112,7 @@ test_install_codex_missing_config_fails() {
   custom_codex_path="$home_dir/.local/bin/missing-codex"
 
   set +e
-  output="$(HOME="$home_dir" WARP_AI_CODEX_BIN="$custom_codex_path" "$ROOT_DIR/install.sh" --install-codex --no-permission-panes 2>&1)"
+  output="$(HOME="$home_dir" WARP_AI_CODEX_BIN="$custom_codex_path" WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 "$ROOT_DIR/install.sh" --install-codex --no-permission-panes 2>&1)"
   exit_code=$?
   set -e
 
@@ -136,6 +143,7 @@ EOF
   HOME="$home_dir" \
     WARP_AI_GROK_INSTALL_COMMAND="$custom_install_cmd" \
     WARP_AI_GROK_BIN="$grok_path" \
+    WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 \
     "$ROOT_DIR/install.sh" --install-grok --no-permission-panes >/dev/null
 
   [[ -x "$grok_path" ]] || fail "custom grok install command did not create executable"
@@ -145,7 +153,7 @@ EOF
 test_uninstall_removes_install_dir() {
   local home_dir
   home_dir="$(mktemp -d)"
-  HOME="$home_dir" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+  HOME="$home_dir" WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
   [[ -d "$home_dir/.superwarp-toolkit" ]] || fail "install dir missing before uninstall"
 
   HOME="$home_dir" "$ROOT_DIR/uninstall.sh" >/dev/null
@@ -224,7 +232,7 @@ test_repo_doctor_uses_repo_toolkit_path() {
 test_tab_config_install() {
   local home_dir output
   home_dir="$(mktemp -d)"
-  HOME="$home_dir" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+  HOME="$home_dir" WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
 
   output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-layout-install' 2>&1)"
   assert_contains "$output" "Installed Warp Tab Configs:"
@@ -243,7 +251,7 @@ test_tab_config_preview_detection() {
   home_dir="$(mktemp -d)"
   mkdir -p "$home_dir/.warp-preview"
 
-  HOME="$home_dir" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+  HOME="$home_dir" WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
   output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-layout-install' 2>&1)"
   [[ -f "$home_dir/.warp-preview/tab_configs/superwarp_toolkit.toml" ]] || fail "preview toolkit tab config missing"
   [[ -f "$home_dir/.warp-preview/tab_configs/superwarp_doctor.toml" ]] || fail "preview doctor tab config missing"
@@ -390,7 +398,7 @@ test_usage_helpers_with_fixtures() {
   plist_path="$fixture_dir/dev.warp.Warp-Stable.plist"
 
   create_usage_fixtures "$fixture_dir"
-  HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+  HOME="$home_dir" WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
 
   output="$(HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-usage; warpai-quick' 2>&1)"
   assert_contains "$output" "Warp AI Usage Report"
@@ -406,7 +414,7 @@ test_usage_helpers_with_fixtures() {
 test_usage_helpers_handle_missing_data() {
   local home_dir output
   home_dir="$(mktemp -d)"
-  HOME="$home_dir" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+  HOME="$home_dir" WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
 
   output="$(HOME="$home_dir" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-usage; warpai-quick' 2>&1)"
   assert_contains "$output" "Plist snapshot: not found"
@@ -447,7 +455,7 @@ with open(path, "wb") as handle:
     plistlib.dump(payload, handle)
 PY
 
-  HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+  HOME="$home_dir" WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
   output="$(HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-usage; warpai-quick' 2>&1)"
   assert_contains "$output" "SQLite history: ai_queries schema unsupported"
   assert_contains "$output" "history unsupported"
@@ -486,7 +494,7 @@ with open(path, "wb") as handle:
     plistlib.dump(payload, handle)
 PY
 
-  HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
+  HOME="$home_dir" WARP_AI_ACCEPT_DEFAULTS=0 WARP_AI_OLLAMA_NO_START=1 WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" "$ROOT_DIR/install.sh" --no-permission-panes >/dev/null
   output="$(HOME="$home_dir" WARP_AI_USAGE_DB="$db_path" WARP_AI_USAGE_PLIST="$plist_path" TERM_PROGRAM=WarpTerminal zsh -ic 'source "$HOME/.zshrc" >/dev/null; warpai-usage; warpai-quick' 2>&1)"
   assert_contains "$output" "Plist snapshot: unavailable"
   assert_contains "$output" "Warp AI: today 1 7d 1"
